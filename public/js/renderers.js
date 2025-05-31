@@ -1,3 +1,5 @@
+import { inspectObject, formatCategory } from './config.js';
+
 const partsTable = document.getElementById("partsTable");
 const ordersTable = document.getElementById("ordersTable");
 const salesTable = document.getElementById("salesTable");
@@ -11,24 +13,6 @@ const salesTbody = salesTable.querySelector("tbody");
 const suppliersTbody = suppliersTable.querySelector("tbody");
 const warehouseCellsTbody = warehouseCellsTable.querySelector("tbody");
 const customerRequestsTbody = customerRequestsTable.querySelector("tbody");
-
-const API_BASE_URL = "http://localhost:3000";
-
-async function fetchJson(url) {
-  const res = await fetch(`${API_BASE_URL}${url}`);
-  return res.json();
-}
-
-function inspectObject(obj, prefix = '') {
-  if (!obj) return;
-  console.log(`${prefix} Доступные поля:`, Object.keys(obj));
-  for (const key of Object.keys(obj)) {
-    const value = obj[key];
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      inspectObject(value, `${prefix}.${key}`);
-    }
-  }
-}
 
 function renderParts(list) {
   partsTbody.innerHTML = "";
@@ -94,7 +78,6 @@ function renderSales(list) {
     return;
   }
 
-  
   if (list.length > 0) {
     inspectObject(list[0], 'Sale');
   }
@@ -129,17 +112,6 @@ function renderSuppliers(list) {
   
   list.forEach((supplier, i) => {
     const tr = document.createElement("tr");
-    
-    function formatCategory(category) {
-      if (!category) return '-';
-      
-      switch(category) {
-        case 'firm': return 'Компания';
-        case 'dealer': return 'Дилер';
-        case 'small_production': return 'Малое производство';
-        default: return category;
-      }
-    }
     
     tr.innerHTML = `
       <td>${i + 1}</td>
@@ -212,31 +184,11 @@ function renderCustomerRequests(list) {
   });
 }
 
-document.getElementById("loadDataBtn").onclick = async () => {
-  const loadBtn = document.getElementById("loadDataBtn");
-  loadBtn.disabled = true;
-  loadBtn.textContent = "Загрузка...";
-  
-  try {
-    const parts = await fetchJson("/api/parts");
-    const orders = await fetchJson("/api/orders");
-    const sales = await fetchJson("/api/sales");
-    const suppliers = await fetchJson("/api/suppliers");
-    const warehouseCells = await fetchJson("/api/warehouse-cells");
-    const customerRequests = await fetchJson("/api/customer-requests");
-    
-    renderParts(parts);
-    renderOrders(orders);
-    renderSales(sales);
-    renderSuppliers(suppliers);
-    renderWarehouseCells(warehouseCells);
-    renderCustomerRequests(customerRequests);
-    
-    loadBtn.textContent = "Данные загружены";
-  } catch (error) {
-    console.error("Ошибка при загрузке данных:", error);
-    loadBtn.textContent = "Ошибка загрузки";
-  } finally {
-    loadBtn.disabled = false;
-  }
-};
+export {
+  renderParts,
+  renderOrders,
+  renderSales,
+  renderSuppliers,
+  renderWarehouseCells,
+  renderCustomerRequests
+}; 
