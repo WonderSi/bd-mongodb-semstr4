@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const Order = require("./models/Orders");
 const Part = require("./models/Parts");
 const Sale = require("./models/Sales");
-const Supplier = require("./models/Supliers");
+const Supplier = require("./models/Suppliers");
 const WarehouseCell = require("./models/WarehouseCells");
 const CustomerRequest = require("./models/CustomerRequests");
 
