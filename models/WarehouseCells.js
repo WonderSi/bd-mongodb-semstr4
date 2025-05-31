@@ -47,4 +47,4 @@ warehouseCellSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.model('WarehouseCell', warehouseCellSchema);
+module.exports = mongoose.model('Warehouse_Cell', warehouseCellSchema);

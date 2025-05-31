@@ -55,4 +55,4 @@ customerRequestSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.model('CustomerRequest', customerRequestSchema);
+module.exports = mongoose.model('Customer_Request', customerRequestSchema);
