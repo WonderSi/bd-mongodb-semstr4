@@ -1,0 +1,8 @@
+db.sales.aggregate([
+  { $match: {
+      "sale_date": { $gte: ISODate("2024-01-01"), $lte: ISODate("2024-12-31") },
+      "sold_items.part_name": 'Тормозные колодки передние BMW X5'
+  }},
+  { $group: { _id: "$customer_info.customer_id" }},
+  { $count: "unique_customers" }
+])  

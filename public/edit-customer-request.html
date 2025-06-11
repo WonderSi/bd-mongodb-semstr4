@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование запроса клиента | Автозапчасти</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .request-form { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .form-section { margin-bottom: 30px; border: 1px solid #eee; padding: 20px; border-radius: 5px; }
+        .form-section h2 { font-size: 1.2em; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+        .form-group { margin-bottom: 15px; }
+        .form-label { display: block; margin-bottom: 5px; color: #666; }
+        .form-control { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .form-control[readonly] { background-color: #f0f0f0; cursor: not-allowed; }
+        .form-buttons { margin-top: 30px; display: flex; justify-content: space-between; }
+        .loading-message, .error-message, .success-message { text-align: center; padding: 20px; }
+        .error-message { color: #f44336; }
+        .success-message { color: #4caf50; }
+        .array-item { border: 1px solid #ddd; border-radius: 4px; padding: 15px; margin-bottom: 15px; background-color: #f9f9f9; }
+        .array-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+        .nested-section { padding-left: 15px; border-left: 3px solid #eee; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Редактирование запроса клиента</h1>
+        <div class="action-panel">
+            <button onclick="history.back()" class="btn-secondary">Вернуться назад</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="requestFormContainer">
+            <p class="loading-message">Загрузка данных запроса...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchCustomerRequestById, updateCustomerRequest, fetchAllCustomerRequests } from './js/api/customer-requests-api.js';
+        import { fetchAllParts } from './js/api/parts-api.js';
+        import { fetchAllSuppliers } from './js/api/suppliers-api.js';
+
+        let allCustomers = [], allParts = [], allSuppliers = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const requestId = urlParams.get('id');
+            const container = document.getElementById('requestFormContainer');
+
+            if (!requestId) {
+                container.innerHTML = '<p class="error-message">Ошибка: ID запроса не указан.</p>';
+                return;
+            }
+
+            try {
+                const [request, customers, parts, suppliers] = await Promise.all([
+                    fetchCustomerRequestById(requestId),
+                    fetchAllCustomerRequests(),
+                    fetchAllParts(),
+                    fetchAllSuppliers()
+                ]);
+
+                allCustomers = customers || [];
+                allParts = parts || [];
+                allSuppliers = suppliers || [];
+
+                if (!request) {
+                    container.innerHTML = '<p class="error-message">Запрос не найден.</p>';
+                    return;
+                }
+
+                document.title = `Редактирование запроса №${request.request_number}`;
+                renderRequestForm(request, container);
+
+            } catch (error) {
+                console.error('Ошибка при загрузке данных:', error);
+                container.innerHTML = `<p class="error-message">Ошибка загрузки: ${error.message}</p>`;
+            }
+        });
+
+        function renderRequestForm(data, container) {
+            container.innerHTML = `
+                <form id="editRequestForm" class="request-form">
+                    <input type="hidden" name="requestId" value="${data._id}">
+
+                    <!-- Основная информация -->
+                    <div class="form-section">
+                        <h2>Основная информация</h2>
+                        <div class="grid-2">
+                            <div class="form-group"><label class="form-label">Номер запроса:</label><input type="text" class="form-control" value="${data.request_number || ''}" readonly></div>
+                            <div class="form-group"><label class="form-label" for="request_date">Дата запроса:</label><input type="date" class="form-control" id="request_date" value="${formatDateForInput(data.request_date)}"></div>
+                            <div class="form-group"><label class="form-label" for="request_status">Статус запроса:</label>
+                                <select class="form-control" id="request_status">
+                                    <option value="pending" ${data.request_status === 'pending' ? 'selected' : ''}>Ожидает</option>
+                                    <option value="processing" ${data.request_status === 'processing' ? 'selected' : ''}>В обработке</option>
+                                    <option value="partially_fulfilled" ${data.request_status === 'partially_fulfilled' ? 'selected' : ''}>Частично выполнен</option>
+                                    <option value="fulfilled" ${data.request_status === 'fulfilled' ? 'selected' : ''}>Выполнен</option>
+                                    <option value="cancelled" ${data.request_status === 'cancelled' ? 'selected' : ''}>Отменен</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ИЗМЕНЕННАЯ СЕКЦИЯ: Информация о клиенте -->
+                    <div class="form-section">
+                        <h2>Информация о клиенте</h2>
+                        <div class="form-group"><label class="form-label" for="customer_name">Имя клиента:</label><input type="text" id="customer_name" class="form-control" value="${data.customer_info?.customer_name || ''}" placeholder="Введите имя клиента"></div>
+                        <div class="grid-2">
+                            <div class="form-group"><label class="form-label">Телефон:</label><input type="text" id="customer_phone" class="form-control" value="${data.customer_info?.phone || ''}" placeholder="+7 (999) 999-99-99"></div>
+                             <div class="form-group"><label class="form-label">Email:</label><input type="text" id="customer_email" class="form-control" value="${data.customer_info?.email || ''}" placeholder="client@example.com"></div>
+                        </div>
+                    </div>
+
+                    <!-- Запрашиваемые товары -->
+                    <div class="form-section">
+                        <h2>Запрашиваемые товары</h2>
+                        <div id="requestedItemsContainer">
+                            ${(data.requested_items || []).map((item, index) => renderRequestedItem(item, index)).join('')}
+                        </div>
+                        <button type="button" class="btn-secondary" onclick="window.addRequestedItem()">Добавить товар</button>
+                    </div>
+
+                    <!-- НОВАЯ СЕКЦИЯ: Сводка по запросу -->
+                    <div class="form-section">
+                        <h2>Сводка по запросу</h2>
+                        <div class="grid-2">
+                            <div class="form-group"><label class="form-label">Всего позиций:</label><input type="text" class="form-control" value="${data.request_summary?.total_positions || 0}" readonly></div>
+                            <div class="form-group"><label class="form-label">Всего товаров (шт):</label><input type="text" class="form-control" value="${data.request_summary?.total_quantity || 0}" readonly></div>
+                            <div class="form-group"><label class="form-label">Общая сумма (макс):</label><input type="text" class="form-control" value="${formatCurrency(data.request_summary?.total_amount || 0)}" readonly></div>
+                            <div class="form-group"><label class="form-label">Выполнено (шт):</label><input type="text" class="form-control" value="${data.request_summary?.fulfilled_quantity || 0}" readonly></div>
+                        </div>
+                    </div>
+
+                    <!-- Ожидаемая поставка -->
+                    <div class="form-section">
+                        <h2>Ожидаемая поставка</h2>
+                        <div class="grid-2">
+                            <div class="form-group"><label class="form-label" for="expected_delivery_date">Ожидаемая дата:</label><input type="date" id="expected_delivery_date" class="form-control" value="${formatDateForInput(data.expected_supply_info?.expected_delivery_date)}"></div>
+                            <div class="form-group"><label class="form-label" for="expected_supplier_id">Ожидаемый поставщик:</label>
+                                <select class="form-control" id="expected_supplier_id">
+                                    <option value="">-- Выберите поставщика --</option>
+                                    ${allSuppliers.map(s => `<option value="${s._id}" ${data.expected_supply_info?.expected_supplier_id == s._id ? 'selected' : ''}>${s.supplier_name || 'Имя не указано'}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="statusMessage"></div>
+
+                    <div class="form-buttons"><button type="button" onclick="window.history.back()" class="btn-secondary">Отмена</button><button type="submit" class="btn-primary">Сохранить изменения</button></div>
+                </form>
+            `;
+            document.getElementById('editRequestForm').addEventListener('submit', handleFormSubmit);
+        }
+
+        function renderRequestedItem(item = {}, index) {
+            return `
+                <div class="array-item requested-item" data-index="${index}">
+                    <div class="array-item-header"><h4>Позиция ${index + 1}</h4><button type="button" class="btn-danger" onclick="this.closest('.array-item').remove()">Удалить</button></div>
+                    <div class="form-group"><label class="form-label">Запчасть:</label><select class="form-control part-select"><option value="">-- Выберите запчасть --</option>${allParts.map(p => `<option value="${p._id}" ${item.part_id == p._id ? 'selected' : ''}>${p.part_name || 'Имя не указано'}</option>`).join('')}</select></div>
+                    <div class="grid-2"><div class="form-group"><label class="form-label">Запрошено (кол-во):</label><input type="number" class="form-control requested-quantity" value="${item.requested_quantity || 1}"></div><div class="form-group"><label class="form-label">Макс. цена за шт.:</label><input type="number" step="0.01" class="form-control max-unit-price" value="${item.max_unit_price || 0}"></div></div>
+                    <div class="nested-section">
+                        <h5>Информация о выполнении</h5>
+                        <div class="grid-2">
+                            <div class="form-group"><label class="form-label">Выполнено (кол-во):</label><input type="number" class="form-control fulfilled-quantity" value="${item.fulfillment_info?.fulfilled_quantity || 0}"></div>
+                            <div class="form-group"><label class="form-label">Дата выполнения:</label><input type="date" class="form-control fulfilled-date" value="${formatDateForInput(item.fulfillment_info?.fulfilled_date)}"></div>
+                            <div class="form-group"><label class="form-label">ID Продажи:</label><input type="text" class="form-control sale-id" value="${item.fulfillment_info?.sale_id || ''}"></div>
+                            <div class="form-group"><label class="form-label">ID Заказа:</label><input type="text" class="form-control order-id" value="${item.fulfillment_info?.order_id || ''}"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        window.addRequestedItem = () => {
+            const container = document.getElementById('requestedItemsContainer');
+            container.insertAdjacentHTML('beforeend', renderRequestedItem({}, container.children.length));
+        };
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const form = e.target;
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.innerHTML = '<p class="loading-message">Сохранение...</p>';
+
+            const customerName = form.querySelector('#customer_name').value.trim();
+            const foundCustomer = allCustomers.find(c => c && c.customer_name && c.customer_name.toLowerCase() === customerName.toLowerCase());
+            
+            let customerInfoObject;
+            if (foundCustomer) {
+                customerInfoObject = { customer_id: foundCustomer._id, customer_name: foundCustomer.customer_name, phone: foundCustomer.phone, email: foundCustomer.email };
+            } else {
+                customerInfoObject = { customer_id: null, customer_name: customerName, phone: form.querySelector('#customer_phone').value.trim(), email: form.querySelector('#customer_email').value.trim() };
+            }
+
+            const requestedItems = Array.from(form.querySelectorAll('.requested-item')).map(el => {
+                const partSelect = el.querySelector('.part-select');
+                const selectedPart = allParts.find(p => p._id == partSelect.value);
+                return {
+                    part_id: partSelect.value, part_name: selectedPart?.part_name || '',
+                    requested_quantity: parseInt(el.querySelector('.requested-quantity').value), max_unit_price: parseFloat(el.querySelector('.max-unit-price').value),
+                    fulfillment_info: {
+                        fulfilled_quantity: parseInt(el.querySelector('.fulfilled-quantity').value), fulfilled_date: el.querySelector('.fulfilled-date').value || null,
+                        sale_id: el.querySelector('.sale-id').value || null, order_id: el.querySelector('.order-id').value || null
+                    }
+                };
+            });
+            
+            const updatedData = {
+                request_date: form.querySelector('#request_date').value, request_status: form.querySelector('#request_status').value,
+                customer_info: customerInfoObject, requested_items: requestedItems,
+                expected_supply_info: { expected_delivery_date: form.querySelector('#expected_delivery_date').value || null, expected_supplier_id: form.querySelector('#expected_supplier_id').value || null }
+            };
+            
+            try {
+                const requestId = form.querySelector('input[name="requestId"]').value;
+                await updateCustomerRequest(requestId, updatedData);
+                statusMessage.innerHTML = '<p class="success-message">Данные успешно сохранены</p>';
+                setTimeout(() => { window.location.href = `customer-request.html?id=${requestId}`; }, 1500);
+            } catch (error) {
+                console.error('Ошибка при сохранении запроса:', error);
+                statusMessage.innerHTML = `<p class="error-message">Ошибка сохранения: ${error.message}</p>`;
+            }
+        }
+        
+        function formatDateForInput(d) { if (!d) return ''; try { return new Date(d).toISOString().split('T')[0]; } catch (e) { return ''; } }
+        function formatCurrency(amount) { if (amount === undefined || amount === null) return '0,00 ₽'; return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(amount); }
+    </script>
+</body>
+</html>

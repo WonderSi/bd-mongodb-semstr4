@@ -1,4 +1,36 @@
-const API_BASE_URL = "http://localhost:3000";
+export const API_BASE_URL = 'http://localhost:3000';
+
+export const ORDER_STATUSES = {
+  'draft': 'Черновик',
+  'placed': 'Размещен',
+  'processing': 'В обработке',
+  'shipped': 'Отправлен',
+  'delivered': 'Доставлен',
+  'completed': 'Завершен',
+  'cancelled': 'Отменен'
+};
+
+export const REQUEST_STATUSES = {
+  'new': 'Новый',
+  'processing': 'В обработке',
+  'pending': 'Ожидает',
+  'fulfilled': 'Выполнен',
+  'cancelled': 'Отменен'
+};
+
+export const CELL_STATUSES = {
+  'available': 'Доступна',
+  'occupied': 'Занята',
+  'reserved': 'Зарезервирована',
+  'maintenance': 'На обслуживании'
+};
+
+export const PRIORITY_LEVELS = {
+  'low': 'Низкий',
+  'medium': 'Средний',
+  'high': 'Высокий',
+  'urgent': 'Срочный'
+};
 
 async function fetchJson(url) {
   const res = await fetch(`${API_BASE_URL}${url}`);
@@ -27,4 +59,4 @@ function formatCategory(category) {
   }
 }
 
-export { API_BASE_URL, fetchJson, inspectObject, formatCategory }; 
+export { fetchJson, inspectObject, formatCategory }; 

@@ -1,0 +1,26 @@
+th:last-child {
+    text-align: center;
+    white-space: nowrap;
+    width: 140px;
+    max-width: 140px;
+}
+
+td:last-child {
+    text-align: center;
+    white-space: nowrap;
+    width: 140px;
+    overflow: visible;
+}
+
+td:last-child button {
+    margin: 0 1px;
+    padding: 5px 8px; 
+    font-size: 12px; 
+}
+
+
+.actions-group {
+    display: flex;
+    justify-content: center;
+    gap: 2px; 
+}

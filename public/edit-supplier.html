@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование поставщика | Автозапчасти</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .supplier-form {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .form-section {
+            margin-bottom: 30px;
+        }
+        
+        .form-section h2 {
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .form-check {
+            margin-top: 5px;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .error-message {
+            color: #f44336;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .success-message {
+            color: #4caf50;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .form-buttons {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Редактирование поставщика</h1>
+        <div class="action-panel">
+            <button onclick="history.back()" class="btn-secondary">Вернуться назад</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="supplierForm">
+            <p class="loading-message">Загрузка данных...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchSupplierById, updateSupplier } from './js/api/suppliers-api.js';
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const supplierId = urlParams.get('id');
+            const supplierForm = document.getElementById('supplierForm');
+            
+            if (!supplierId) {
+                supplierForm.innerHTML = '<p class="error-message">Ошибка: ID поставщика не указан</p>';
+                return;
+            }
+            
+            try {
+                const supplier = await fetchSupplierById(supplierId);
+                
+                if (!supplier) {
+                    supplierForm.innerHTML = '<p class="error-message">Поставщик не найден</p>';
+                    return;
+                }
+
+                document.title = `Редактирование: ${supplier.supplier_name} | Автозапчасти`;
+                
+                renderSupplierForm(supplier, supplierForm);
+                
+            } catch (error) {
+                console.error('Ошибка при загрузке данных поставщика:', error);
+                supplierForm.innerHTML = `<p class="error-message">Ошибка загрузки данных: ${error.message}</p>`;
+            }
+        });
+        
+        function renderSupplierForm(data, container) {
+            const form = document.createElement('form');
+            form.id = 'editSupplierForm';
+            form.className = 'supplier-form';
+            
+            form.innerHTML = `
+                <input type="hidden" name="supplierId" value="${data._id}">
+                
+                <div class="form-section">
+                    <h2>Основная информация</h2>
+                    <div class="form-group">
+                        <label class="form-label" for="supplier_name">Название:</label>
+                        <input type="text" class="form-control" id="supplier_name" name="supplier_name" value="${data.supplier_name}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="supplier_category">Категория:</label>
+                        <select class="form-control" id="supplier_category" name="supplier_category" required>
+                            <option value="firm" ${data.supplier_category === 'firm' ? 'selected' : ''}>Компания</option>
+                            <option value="dealer" ${data.supplier_category === 'dealer' ? 'selected' : ''}>Официальный дилер</option>
+                            <option value="small_production" ${data.supplier_category === 'small_production' ? 'selected' : ''}>Малое производство</option>
+                            <option value="individual" ${data.supplier_category === 'individual' ? 'selected' : ''}>Частное лицо</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="reliability_rating">Рейтинг надежности (0-10):</label>
+                        <input type="number" class="form-control" id="reliability_rating" name="reliability_rating" 
+                            min="0" max="10" step="0.1" value="${data.reliability_rating}" required>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h2>Контактная информация</h2>
+                    <div class="form-group">
+                        <label class="form-label" for="phone">Телефон:</label>
+                        <input type="tel" class="form-control" id="phone" name="phone" value="${data.contact_info.phone}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email:</label>
+                        <input type="email" class="form-control" id="email" name="email" value="${data.contact_info.email}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="address">Адрес:</label>
+                        <textarea class="form-control" id="address" name="address" rows="2" required>${data.contact_info.address}</textarea>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h2>Условия работы</h2>
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" id="has_guarantee" name="has_guarantee" ${data.has_guarantee ? 'checked' : ''}>
+                            <label for="has_guarantee">Предоставляет гарантию</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" id="provides_discounts" name="provides_discounts" ${data.provides_discounts ? 'checked' : ''}>
+                            <label for="provides_discounts">Предоставляет скидки</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" id="has_full_documents" name="has_full_documents" ${data.has_full_documents ? 'checked' : ''}>
+                            <label for="has_full_documents">Полный пакет документов</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" id="contract_based" name="contract_based" ${data.contract_based ? 'checked' : ''}>
+                            <label for="contract_based">Работа по договору</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h2>Условия доставки</h2>
+                    <div class="form-group">
+                        <label class="form-label" for="min_days">Минимальный срок доставки (дней):</label>
+                        <input type="number" class="form-control" id="min_days" name="min_days" 
+                            min="0" value="${data.delivery_terms.min_days}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="max_days">Максимальный срок доставки (дней):</label>
+                        <input type="number" class="form-control" id="max_days" name="max_days" 
+                            min="0" value="${data.delivery_terms.max_days}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="delivery_cost">Стоимость доставки (₽):</label>
+                        <input type="number" class="form-control" id="delivery_cost" name="delivery_cost" 
+                            min="0" value="${data.delivery_terms.delivery_cost}" required>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h2>Статистика заказов</h2>
+                    <div class="form-group">
+                        <label class="form-label" for="total_orders_count">Количество заказов:</label>
+                        <input type="number" class="form-control" id="total_orders_count" name="total_orders_count" 
+                            min="0" value="${data.total_orders_count}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="total_orders_amount">Общая сумма заказов (₽):</label>
+                        <input type="number" class="form-control" id="total_orders_amount" name="total_orders_amount" 
+                            min="0" value="${data.total_orders_amount}" required>
+                    </div>
+                </div>
+                
+                <div id="statusMessage"></div>
+                
+                <div class="form-buttons">
+                    <button type="button" onclick="window.history.back()" class="btn-secondary">Отмена</button>
+                    <button type="submit" class="btn-primary">Сохранить изменения</button>
+                </div>
+            `;
+            
+            container.innerHTML = '';
+            container.appendChild(form);
+            
+            form.addEventListener('submit', handleFormSubmit);
+        }
+        
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.innerHTML = '<p class="loading-message">Сохранение данных...</p>';
+            
+            const form = document.getElementById('editSupplierForm');
+            const supplierId = form.querySelector('input[name="supplierId"]').value;
+            
+            try {
+                const updatedData = {
+                    _id: supplierId,
+                    supplier_name: form.querySelector('#supplier_name').value,
+                    supplier_category: form.querySelector('#supplier_category').value,
+                    contact_info: {
+                        phone: form.querySelector('#phone').value,
+                        email: form.querySelector('#email').value,
+                        address: form.querySelector('#address').value
+                    },
+                    has_guarantee: form.querySelector('#has_guarantee').checked,
+                    provides_discounts: form.querySelector('#provides_discounts').checked,
+                    has_full_documents: form.querySelector('#has_full_documents').checked,
+                    contract_based: form.querySelector('#contract_based').checked,
+                    reliability_rating: parseFloat(form.querySelector('#reliability_rating').value),
+                    delivery_terms: {
+                        min_days: parseInt(form.querySelector('#min_days').value),
+                        max_days: parseInt(form.querySelector('#max_days').value),
+                        delivery_cost: parseFloat(form.querySelector('#delivery_cost').value)
+                    },
+                    total_orders_count: parseInt(form.querySelector('#total_orders_count').value),
+                    total_orders_amount: parseFloat(form.querySelector('#total_orders_amount').value),
+                    is_active: form.querySelector('#is_active').checked
+                };
+                
+                await updateSupplier(supplierId, updatedData);
+                
+                statusMessage.innerHTML = '<p class="success-message">Данные успешно сохранены</p>';
+                
+                setTimeout(() => {
+                    window.location.href = `supplier.html?id=${supplierId}`;
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Ошибка при сохранении данных:', error);
+                statusMessage.innerHTML = `<p class="error-message">Ошибка сохранения: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Данные запчасти | Автозапчасти</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .part-info {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .info-section {
+            margin-bottom: 30px;
+        }
+        
+        .info-section h2 {
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-row {
+            display: flex;
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+        
+        .info-label {
+            width: 200px;
+            color: #666;
+        }
+        
+        .info-value {
+            color: #333;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .error-message {
+            color: #f44336;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .supplier-item {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #eee;
+            background-color: #f9f9f9;
+        }
+        
+        .supplier-item-header {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        
+        .tag {
+            background-color: #e1f5fe;
+            color: #0288d1;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Данные запчасти</h1>
+        <div class="action-panel">
+            <button onclick="history.back()" class="btn-secondary">Вернуться назад</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="partInfo">
+            <p class="loading-message">Загрузка данных...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchPartById } from './js/api/parts-api.js';
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const partId = urlParams.get('id');
+            const partInfo = document.getElementById('partInfo');
+            
+            if (!partId) {
+                partInfo.innerHTML = '<p class="error-message">Ошибка: ID запчасти не указан</p>';
+                return;
+            }
+            
+            try {
+                const part = await fetchPartById(partId);
+                
+                if (!part) {
+                    partInfo.innerHTML = '<p class="error-message">Запчасть не найдена</p>';
+                    return;
+                }
+
+                document.title = `${part.part_name} | Автозапчасти`;
+                
+                renderPartInfo(part, partInfo);
+                
+            } catch (error) {
+                console.error('Ошибка при загрузке данных запчасти:', error);
+                partInfo.innerHTML = `<p class="error-message">Ошибка загрузки данных: ${error.message}</p>`;
+            }
+        });
+
+        function formatCurrency(amount, currency = 'RUB') {
+            const formatter = new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: currency,
+                minimumFractionDigits: 2
+            });
+            return formatter.format(amount);
+        }
+        
+        function renderPartInfo(data, container) {
+            let suppliersHtml = '';
+            if (data.suppliers_info && data.suppliers_info.length > 0) {
+                suppliersHtml = data.suppliers_info.map(supplier => `
+                    <div class="supplier-item">
+                        <div class="supplier-item-header">${supplier.supplier_name || 'Поставщик'}</div>
+                        <div>Цена: ${formatCurrency(supplier.price_per_unit, supplier.currency || 'RUB')}</div>
+                        <div>Срок доставки: ${supplier.delivery_days_min}-${supplier.delivery_days_max} дней</div>
+                    </div>
+                `).join('');
+            } else {
+                suppliersHtml = '<p>Информация о поставщиках отсутствует</p>';
+            }
+
+            let tagsHtml = '';
+            if (data.tags && data.tags.length > 0) {
+                tagsHtml = `
+                    <div class="tag-list">
+                        ${data.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                    </div>
+                `;
+            }
+            
+            const content = `
+                <div class="part-info">
+                    <div class="info-section">
+                        <h2>Основная информация</h2>
+                        <div class="info-row">
+                            <span class="info-label">Название:</span>
+                            <span class="info-value">${data.part_name}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Категория:</span>
+                            <span class="info-value">${data.part_category || 'Не указана'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Сезонная:</span>
+                            <span class="info-value">${data.is_seasonal ? 'Да' : 'Нет'}</span>
+                        </div>
+                        ${data.description ? `
+                        <div class="info-row">
+                            <span class="info-label">Описание:</span>
+                            <span class="info-value">${data.description}</span>
+                        </div>
+                        ` : ''}
+                        ${tagsHtml ? `
+                        <div class="info-row">
+                            <span class="info-label">Теги:</span>
+                            <span class="info-value">${tagsHtml}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Технические характеристики</h2>
+                        ${data.specifications ? `
+                        <div class="info-row">
+                            <span class="info-label">Производитель:</span>
+                            <span class="info-value">${data.specifications.manufacturer || 'Не указан'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Совместимость:</span>
+                            <span class="info-value">${data.specifications.compatibility && data.specifications.compatibility.length ? data.specifications.compatibility.join(', ') : 'Не указана'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Вес:</span>
+                            <span class="info-value">${data.specifications.weight_kg ? `${data.specifications.weight_kg} кг` : 'Не указан'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Размеры:</span>
+                            <span class="info-value">${data.specifications.dimensions || 'Не указаны'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Материал:</span>
+                            <span class="info-value">${data.specifications.material || 'Не указан'}</span>
+                        </div>
+                        ` : '<p>Технические характеристики отсутствуют</p>'}
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Информация о поставщиках</h2>
+                        <div class="suppliers-list">
+                            ${suppliersHtml}
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Данные склада</h2>
+                        ${data.warehouse_info ? `
+                        <div class="info-row">
+                            <span class="info-label">В наличии:</span>
+                            <span class="info-value">${data.warehouse_info.current_stock} шт.</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Зарезервировано:</span>
+                            <span class="info-value">${data.warehouse_info.reserved_stock} шт.</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Ячейки хранения:</span>
+                            <span class="info-value">${data.warehouse_info.storage_cells && data.warehouse_info.storage_cells.length ? data.warehouse_info.storage_cells.join(', ') : 'Не указаны'}</span>
+                        </div>
+                        ` : '<p>Данные склада отсутствуют</p>'}
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Статистика продаж</h2>
+                        ${data.sales_statistics ? `
+                        <div class="info-row">
+                            <span class="info-label">Всего продано:</span>
+                            <span class="info-value">${data.sales_statistics.total_sold_quantity} шт.</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">На сумму:</span>
+                            <span class="info-value">${formatCurrency(data.sales_statistics.total_sold_amount)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">За последние 30 дней:</span>
+                            <span class="info-value">${data.sales_statistics.last_30_days_sold} шт.</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Последняя продажа:</span>
+                            <span class="info-value">${data.sales_statistics.last_sale_date ? new Date(data.sales_statistics.last_sale_date).toLocaleDateString() : 'Не было'}</span>
+                        </div>
+                        ` : '<p>Статистика продаж отсутствует</p>'}
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Информация о дефектах</h2>
+                        ${data.defect_info ? `
+                        <div class="info-row">
+                            <span class="info-label">Всего дефектов:</span>
+                            <span class="info-value">${data.defect_info.total_defects}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Процент дефектов:</span>
+                            <span class="info-value">${data.defect_info.defect_rate_percent}%</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Последний дефект:</span>
+                            <span class="info-value">${data.defect_info.last_defect_date ? new Date(data.defect_info.last_defect_date).toLocaleDateString() : 'Не было'}</span>
+                        </div>
+                        ` : '<p>Информация о дефектах отсутствует</p>'}
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = content;
+        }
+    </script>
+</body>
+</html> 

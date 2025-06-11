@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Данные поставщика | Автозапчасти</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .supplier-info {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .info-section {
+            margin-bottom: 30px;
+        }
+        
+        .info-section h2 {
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-row {
+            display: flex;
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+        
+        .info-label {
+            width: 200px;
+            color: #666;
+        }
+        
+        .info-value {
+            color: #333;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .error-message {
+            color: #f44336;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            margin-right: 5px;
+        }
+        
+        .badge-success {
+            background-color: #4caf50;
+            color: white;
+        }
+        
+        .badge-warning {
+            background-color: #ff9800;
+            color: white;
+        }
+        
+        .badge-danger {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .badge-info {
+            background-color: #2196f3;
+            color: white;
+        }
+        
+        .rating-display {
+            width: 150px;
+            height: 15px;
+            background-color: #eee;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+            margin-right: 10px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .rating-bar {
+            height: 100%;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .rating-value {
+            margin-left: 5px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Данные поставщика</h1>
+        <div class="action-panel">
+            <button onclick="history.back()" class="btn-secondary">Вернуться назад</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="supplierInfo">
+            <p class="loading-message">Загрузка данных...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchSupplierById } from './js/api/suppliers-api.js';
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const supplierId = urlParams.get('id');
+            const supplierInfo = document.getElementById('supplierInfo');
+            
+            if (!supplierId) {
+                supplierInfo.innerHTML = '<p class="error-message">Ошибка: ID поставщика не указан</p>';
+                return;
+            }
+            
+            try {
+                const supplier = await fetchSupplierById(supplierId);
+                
+                if (!supplier) {
+                    supplierInfo.innerHTML = '<p class="error-message">Поставщик не найден</p>';
+                    return;
+                }
+
+                document.title = `${supplier.supplier_name} | Автозапчасти`;
+                
+                renderSupplierInfo(supplier, supplierInfo);
+                
+            } catch (error) {
+                console.error('Ошибка при загрузке данных поставщика:', error);
+                
+                if (error.message && error.message.includes('404')) {
+                    supplierInfo.innerHTML = `
+                        <div class="error-message">
+                            <h3>Сервер API недоступен (ошибка 404)</h3>
+                            <p>Убедитесь, что сервер запущен по адресу: 
+                            <strong>http://localhost:3000</strong></p>
+                            <button type="button" class="btn-primary" onclick="window.history.back()">
+                                Вернуться на главную
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    supplierInfo.innerHTML = `<p class="error-message">Ошибка загрузки данных: ${error.message}</p>`;
+                }
+            }
+        });
+        
+        function getRatingColor(rating) {
+            if (rating >= 8) return "#4caf50";
+            if (rating >= 6) return "#ff9800";
+            return "#f44336";
+        }
+        
+        function renderSupplierInfo(data, container) {
+            const categoryLabels = {
+                'firm': 'Компания',
+                'dealer': 'Официальный дилер',
+                'small_production': 'Малое производство',
+                'individual': 'Частное лицо'
+            };
+            
+            const categoryName = categoryLabels[data.supplier_category] || data.supplier_category;
+            
+            const content = `
+                <div class="supplier-info">
+                    <div class="info-section">
+                        <h2>Основная информация</h2>
+                        <div class="info-row">
+                            <span class="info-label">Название:</span>
+                            <span class="info-value">${data.supplier_name}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Категория:</span>
+                            <span class="info-value">${categoryName}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Рейтинг надежности:</span>
+                            <span class="info-value">
+                                <div class="rating-display">
+                                    <div class="rating-bar" style="width: ${data.reliability_rating * 10}%; background-color: ${getRatingColor(data.reliability_rating)};"></div>
+                                </div>
+                                <span class="rating-value">${data.reliability_rating}/10</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Контактная информация</h2>
+                        <div class="info-row">
+                            <span class="info-label">Телефон:</span>
+                            <span class="info-value">${data.contact_info.phone}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Email:</span>
+                            <span class="info-value">${data.contact_info.email}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Адрес:</span>
+                            <span class="info-value">${data.contact_info.address}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Условия работы</h2>
+                        <div class="info-row">
+                            <span class="info-label">Гарантия:</span>
+                            <span class="info-value">${data.has_guarantee ? 'Да' : 'Нет'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Предоставляет скидки:</span>
+                            <span class="info-value">${data.provides_discounts ? 'Да' : 'Нет'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Полный пакет документов:</span>
+                            <span class="info-value">${data.has_full_documents ? 'Да' : 'Нет'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Работа по договору:</span>
+                            <span class="info-value">${data.contract_based ? 'Да' : 'Нет'}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Условия доставки</h2>
+                        <div class="info-row">
+                            <span class="info-label">Срок доставки:</span>
+                            <span class="info-value">${data.delivery_terms.min_days}-${data.delivery_terms.max_days} дней</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Стоимость доставки:</span>
+                            <span class="info-value">${data.delivery_terms.delivery_cost} ₽</span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Статистика заказов</h2>
+                        <div class="info-row">
+                            <span class="info-label">Количество заказов:</span>
+                            <span class="info-value">${data.total_orders_count}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Общая сумма заказов:</span>
+                            <span class="info-value">${new Intl.NumberFormat('ru-RU').format(data.total_orders_amount)} ₽</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = content;
+        }
+    </script>
+</body>
+</html>

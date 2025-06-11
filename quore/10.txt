@@ -1,0 +1,33 @@
+db.customer_requests.aggregate([
+  {
+    $unwind: "$requested_items"
+  },
+  {
+    $match: {
+      request_status: { $in: ["pending", "processing"] }
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      total_expected_items_count: { $sum: 1 },
+      total_expected_amount: { $sum: "$requested_items.total_max_amount" },
+      expected_items_list: {
+        $push: {
+          request_number: "$request_number",
+          customer: "$customer_info.customer_name",
+          part_name: "$requested_items.part_name",
+          amount: "$requested_items.total_max_amount"
+        }
+      }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      total_expected_items_count: 1,
+      total_expected_amount: 1,
+      expected_items_list: 1
+    }
+  }
+])

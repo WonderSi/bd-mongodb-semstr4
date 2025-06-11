@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Данные запроса клиента | Автозапчасти</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .request-info {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .info-section {
+            margin-bottom: 30px;
+        }
+        
+        .info-section h2 {
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-row {
+            display: flex;
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+        
+        .info-label {
+            width: 200px;
+            color: #666;
+        }
+        
+        .info-value {
+            color: #333;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .error-message {
+            color: #f44336;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .request-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #eee;
+            background-color: #f9f9f9;
+        }
+        
+        .request-item-header {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-fulfilled {
+            background-color: #d1e7dd;
+            color: #198754;
+        }
+        
+        .status-partially_fulfilled {
+            background-color: #cff4fc;
+            color: #055160;
+        }
+        
+        .status-cancelled {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .priority-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.85em;
+        }
+        
+        .priority-low {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .priority-medium {
+            background-color: #fff8e1;
+            color: #ff8f00;
+        }
+        
+        .priority-high {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+        
+        .priority-urgent {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Данные запроса клиента</h1>
+        <div class="action-panel">
+            <button onclick="history.back()" class="btn-secondary">Вернуться назад</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="requestInfo">
+            <p class="loading-message">Загрузка данных...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchCustomerRequestById } from './js/api/customer-requests-api.js';
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const requestId = urlParams.get('id');
+            const requestInfo = document.getElementById('requestInfo');
+            
+            if (!requestId) {
+                requestInfo.innerHTML = '<p class="error-message">Ошибка: ID запроса не указан</p>';
+                return;
+            }
+            
+            try {
+                const request = await fetchCustomerRequestById(requestId);
+                
+                if (!request) {
+                    requestInfo.innerHTML = '<p class="error-message">Запрос не найден</p>';
+                    return;
+                }
+
+                document.title = `Запрос №${request.request_number || requestId} | Автозапчасти`;
+                
+                renderRequestInfo(request, requestInfo);
+                
+            } catch (error) {
+                console.error('Ошибка при загрузке данных запроса:', error);
+                requestInfo.innerHTML = `<p class="error-message">Ошибка загрузки данных: ${error.message}</p>`;
+            }
+        });
+
+        function renderRequestInfo(data, container) {
+
+            let requestedItemsHtml = '';
+            
+            if (data.requested_items && data.requested_items.length > 0) {
+                requestedItemsHtml = data.requested_items.map((item, index) => {
+                    const itemTotal = item.requested_quantity * (item.max_unit_price || 0);
+                    
+                    return `
+                        <div class="request-item">
+                            <div class="request-item-header">${index + 1}. ${item.part_name || 'Запчасть'}</div>
+                            <div class="info-row">
+                                <span class="info-label">Запрошенное количество:</span>
+                                <span class="info-value">${item.requested_quantity} шт.</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Цена:</span>
+                                <span class="info-value">${formatCurrency(item.max_unit_price || 0)}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Сумма:</span>
+                                <span class="info-value">${formatCurrency(itemTotal)}</span>
+                            </div>
+                            ${item.fulfillment_info ? `
+                            <div class="info-row">
+                                <span class="info-label">Выполнено:</span>
+                                <span class="info-value">${item.fulfillment_info.fulfilled_quantity || 0} шт.</span>
+                            </div>
+                            ${item.fulfillment_info.fulfilled_date ? `
+                            <div class="info-row">
+                                <span class="info-label">Дата выполнения:</span>
+                                <span class="info-value">${formatDate(item.fulfillment_info.fulfilled_date)}</span>
+                            </div>
+                            ` : ''}
+                            ${item.fulfillment_info.sale_id ? `
+                            <div class="info-row">
+                                <span class="info-label">ID продажи:</span>
+                                <span class="info-value">${item.fulfillment_info.sale_id}</span>
+                            </div>
+                            ` : ''}
+                            ${item.fulfillment_info.order_id ? `
+                            <div class="info-row">
+                                <span class="info-label">ID заказа:</span>
+                                <span class="info-value">${item.fulfillment_info.order_id}</span>
+                            </div>
+                            ` : ''}
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                requestedItemsHtml = '<p>Запрашиваемые товары отсутствуют</p>';
+            }
+
+            const statusClass = data.request_status ? `status-${data.request_status}` : '';
+            const statusBadge = `<span class="status-badge ${statusClass}">${formatStatus(data.request_status)}</span>`;
+
+            let priorityBadge = '';
+            if (data.priority_level) {
+                const priorityClass = `priority-${data.priority_level}`;
+                priorityBadge = `<span class="priority-badge ${priorityClass}">${formatPriority(data.priority_level)}</span>`;
+            }
+            
+            const content = `
+                <div class="request-info">
+                    <div class="info-section">
+                        <h2>Основная информация</h2>
+                        <div class="info-row">
+                            <span class="info-label">Номер запроса:</span>
+                            <span class="info-value">${data.request_number || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Дата запроса:</span>
+                            <span class="info-value">${formatDate(data.request_date)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Статус запроса:</span>
+                            <span class="info-value">${statusBadge}</span>
+                        </div>
+                        ${data.priority_level ? `
+                        <div class="info-row">
+                            <span class="info-label">Приоритет:</span>
+                            <span class="info-value">${priorityBadge}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Информация о клиенте</h2>
+                        ${data.customer_info ? `
+                        <div class="info-row">
+                            <span class="info-label">Имя/название клиента:</span>
+                            <span class="info-value">${data.customer_info.customer_name || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Телефон:</span>
+                            <span class="info-value">${data.customer_info.phone || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Email:</span>
+                            <span class="info-value">${data.customer_info.email || '-'}</span>
+                        </div>
+                        ` : '<p>Информация о клиенте отсутствует</p>'}
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Запрашиваемые товары</h2>
+                        <div class="request-items-list">
+                            ${requestedItemsHtml}
+                        </div>
+                    </div>
+                    
+                    ${data.request_summary ? `
+                    <div class="info-section">
+                        <h2>Сводка по запросу</h2>
+                        <div class="info-row">
+                            <span class="info-label">Всего единц товаров:</span>
+                            <span class="info-value">${data.request_summary.total_positions}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Всего товаров:</span>
+                            <span class="info-value">${data.request_summary.total_quantity} шт.</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Общая сумма:</span>
+                            <span class="info-value">${formatCurrency(data.request_summary.total_amount)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Выполнено:</span>
+                            <span class="info-value">${data.request_summary.fulfilled_quantity} шт.</span>
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    ${data.expected_supply_info ? `
+                    <div class="info-section">
+                        <h2>Ожидаемая поставка</h2>
+                        ${data.expected_supply_info.expected_delivery_date ? `
+                        <div class="info-row">
+                            <span class="info-label">Ожидаемая дата поставки:</span>
+                            <span class="info-value">${formatDate(data.expected_supply_info.expected_delivery_date)}</span>
+                        </div>
+                        ` : ''}
+                        ${data.expected_supply_info.expected_supplier_id ? `
+                        <div class="info-row">
+                            <span class="info-label">ID поставщика:</span>
+                            <span class="info-value">${data.expected_supply_info.expected_supplier_id}</span>
+                        </div>
+                        ` : ''}
+                        ${data.expected_supply_info.expected_order_id ? `
+                        <div class="info-row">
+                            <span class="info-label">ID заказа:</span>
+                            <span class="info-value">${data.expected_supply_info.expected_order_id}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    ${data.notes ? `
+                    <div class="info-section">
+                        <h2>Примечания</h2>
+                        <div class="info-row">
+                            <div>${data.notes}</div>
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            container.innerHTML = content;
+        }
+
+        function formatCurrency(amount, currency = 'RUB') {
+            if (amount === undefined || amount === null) return '-';
+            const formatter = new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: currency,
+                minimumFractionDigits: 2
+            });
+            return formatter.format(amount);
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('ru-RU');
+            } catch (e) {
+                return dateString;
+            }
+        }
+        
+        function formatStatus(status) {
+            const statusMap = {
+                'pending': 'Ожидает выполнения',
+                'fulfilled': 'Выполнен',
+                'partially_fulfilled': 'Частично выполнен',
+                'cancelled': 'Отменен'
+            };
+            
+            return statusMap[status] || status || '-';
+        }
+        
+        function formatPriority(priority) {
+            const priorityMap = {
+                'low': 'Низкий',
+                'medium': 'Средний',
+                'high': 'Высокий',
+                'urgent': 'Срочный'
+            };
+            
+            return priorityMap[priority] || priority || '-';
+        }
+    </script>
+</body>
+</html> 

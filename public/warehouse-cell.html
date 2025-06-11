@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Данные ячейки склада | Автозапчасти</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .cell-info {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .info-section {
+            margin-bottom: 30px;
+        }
+        
+        .info-section h2 {
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-row {
+            display: flex;
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+        
+        .info-label {
+            width: 200px;
+            color: #666;
+        }
+        
+        .info-value {
+            color: #333;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .error-message {
+            color: #f44336;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Данные ячейки склада</h1>
+        <div class="action-panel">
+            <button onclick="history.back()" class="btn-secondary">Вернуться назад</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="warehouseCellInfo">
+            <p class="loading-message">Загрузка данных...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchWarehouseCellById } from './js/api/warehouse-api.js';
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const cellId = urlParams.get('id');
+            const warehouseCellInfo = document.getElementById('warehouseCellInfo');
+            
+            if (!cellId) {
+                warehouseCellInfo.innerHTML = '<p class="error-message">Ошибка: ID ячейки не указан</p>';
+                return;
+            }
+            
+            try {
+                
+                const cell = await fetchWarehouseCellById(cellId);
+                
+                if (!cell) {
+                    warehouseCellInfo.innerHTML = '<p class="error-message">Ячейка не найдена</p>';
+                    return;
+                }
+
+                document.title = `Ячейка ${cell.cell_number} | Автозапчасти`;
+                
+                renderCellInfo(cell, warehouseCellInfo);
+                
+            } catch (error) {
+                console.error('Ошибка при загрузке данных ячейки:', error);
+                warehouseCellInfo.innerHTML = `<p class="error-message">Ошибка загрузки данных: ${error.message}</p>`;
+            }
+        });
+        
+        function renderCellInfo(data, container) {
+            const content = `
+                <div class="cell-info">
+                    <div class="info-section">
+                        <h2>Основная информация</h2>
+                        <div class="info-row">
+                            <span class="info-label">Номер ячейки:</span>
+                            <span class="info-value">${data.cell_number}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Статус:</span>
+                            <span class="info-value">${data.cell_status}</span>
+                        </div>
+                    </div>
+
+                    <div class="info-section">
+                        <h2>Характеристики</h2>
+                        <div class="info-row">
+                            <span class="info-label">Зона:</span>
+                            <span class="info-value">${data.cell_characteristics.zone}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Ряд:</span>
+                            <span class="info-value">${data.cell_characteristics.row}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Позиция:</span>
+                            <span class="info-value">${data.cell_characteristics.position}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Макс. вместимость:</span>
+                            <span class="info-value">${data.cell_characteristics.max_capacity_kg} кг</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Макс. объем:</span>
+                            <span class="info-value">${data.cell_characteristics.max_volume_m3} м³</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Размеры:</span>
+                            <span class="info-value">${data.cell_characteristics.dimensions}</span>
+                        </div>
+                    </div>
+
+                    <div class="info-section">
+                        <h2>Текущее состояние</h2>
+                        <div class="info-row">
+                            <span class="info-label">Занята:</span>
+                            <span class="info-value">${data.current_state.is_occupied ? 'Да' : 'Нет'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Текущий вес:</span>
+                            <span class="info-value">${data.current_state.current_weight_kg} кг</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Текущий объем:</span>
+                            <span class="info-value">${data.current_state.current_volume_m3} м³</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Заполненность:</span>
+                            <span class="info-value">${data.current_state.occupancy_percentage}%</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Хранимые детали:</span>
+                            <span class="info-value">
+                                ${data.current_state.stored_parts && data.current_state.stored_parts.length > 0 
+                                    ? data.current_state.stored_parts.map(part => 
+                                        `<div>${part.part_name} (${part.quantity} шт.)</div>`
+                                    ).join('')
+                                    : 'Нет деталей'
+                                }
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="info-section">
+                        <h2>Статистика использования</h2>
+                        <div class="info-row">
+                            <span class="info-label">Всего хранилось:</span>
+                            <span class="info-value">${data.usage_statistics.total_items_stored} предметов</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Средний срок хранения:</span>
+                            <span class="info-value">${data.usage_statistics.average_occupancy_days} дней</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Последняя инвентаризация:</span>
+                            <span class="info-value">${new Date(data.usage_statistics.last_inventory_date).toLocaleDateString()}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Коэффициент оборота:</span>
+                            <span class="info-value">${data.usage_statistics.turnover_rate}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = content;
+        }
+    </script>
+</body>
+</html>

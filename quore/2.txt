@@ -1,0 +1,26 @@
+db.parts.aggregate([
+  {
+    $match: { "part_name": "Масляный фильтр Mercedes E-Class" }
+  },
+  {
+    $unwind: "$suppliers_info"
+  },
+  {
+    $group: {
+      _id: "$_id",
+      part_name: { $first: "$part_name" },
+      specifications: { $first: "$specifications" },
+      suppliers: {
+        $push: {
+          name: "$suppliers_info.supplier_name",
+          category: "$suppliers_info.supplier_category",
+          price: "$suppliers_info.price_per_unit",
+          delivery_days: {
+            min: "$suppliers_info.delivery_days_min",
+            max: "$suppliers_info.delivery_days_max"
+          }
+        }
+      }
+    }
+  }
+])

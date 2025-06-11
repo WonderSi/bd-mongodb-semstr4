@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Данные продажи | Автозапчасти</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .sale-info {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .info-section {
+            margin-bottom: 30px;
+        }
+        
+        .info-section h2 {
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-row {
+            display: flex;
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+        
+        .info-label {
+            width: 200px;
+            color: #666;
+        }
+        
+        .info-value {
+            color: #333;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .error-message {
+            color: #f44336;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .sale-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #eee;
+            background-color: #f9f9f9;
+        }
+        
+        .sale-item-header {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        .status-completed {
+            background-color: #d1e7dd;
+            color: #198754;
+        }
+        
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-cancelled {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-refunded {
+            background-color: #cff4fc;
+            color: #055160;
+        }
+        
+        .total-row {
+            font-weight: bold;
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Данные продажи</h1>
+        <div class="action-panel">
+            <button onclick="history.back()" class="btn-secondary">Вернуться назад</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="saleInfo">
+            <p class="loading-message">Загрузка данных...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchSaleById } from './js/api/sales-api.js';
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const saleId = urlParams.get('id');
+            const saleInfo = document.getElementById('saleInfo');
+            
+            if (!saleId) {
+                saleInfo.innerHTML = '<p class="error-message">Ошибка: ID продажи не указан</p>';
+                return;
+            }
+            
+            try {
+                const sale = await fetchSaleById(saleId);
+                
+                if (!sale) {
+                    saleInfo.innerHTML = '<p class="error-message">Продажа не найдена</p>';
+                    return;
+                }
+
+                document.title = `Продажа №${sale.sale_number || saleId} | Автозапчасти`;
+                
+                renderSaleInfo(sale, saleInfo);
+                
+            } catch (error) {
+                console.error('Ошибка при загрузке данных продажи:', error);
+                saleInfo.innerHTML = `<p class="error-message">Ошибка загрузки данных: ${error.message}</p>`;
+            }
+        });
+
+        function renderSaleInfo(data, container) {
+            let saleItemsHtml = '';
+            
+            if (data.sold_items && data.sold_items.length > 0) {
+                saleItemsHtml = data.sold_items.map((item, index) => {
+                    const itemTotal = item.unit_price * item.sold_quantity;
+                    
+                    return `
+                        <div class="sale-item">
+                            <div class="sale-item-header">${index + 1}. ${item.part_name || 'Запчасть'}</div>
+                            <div class="info-row">
+                                <span class="info-label">Количество:</span>
+                                <span class="info-value">${item.sold_quantity} шт.</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Цена за единицу:</span>
+                                <span class="info-value">${formatCurrency(item.unit_price)}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Итого:</span>
+                                <span class="info-value">${formatCurrency(itemTotal)}</span>
+                            </div>
+                            ${item.supplier_info ? `
+                            <div class="info-row">
+                                <span class="info-label">Поставщик:</span>
+                                <span class="info-value">${item.supplier_info.supplier_name || '-'}</span>
+                            </div>
+                            ` : ''}
+                            ${item.storage_cell ? `
+                            <div class="info-row">
+                                <span class="info-label">Ячейка хранения:</span>
+                                <span class="info-value">${item.storage_cell}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                saleItemsHtml = '<p>Товары в продаже отсутствуют</p>';
+            }
+            
+            const statusClass = data.financial_info && data.financial_info.payment_status ? `status-${data.financial_info.payment_status}` : '';
+            const statusBadge = `<span class="status-badge ${statusClass}">${formatPaymentStatus(data.financial_info?.payment_status)}</span>`;
+            
+            const content = `
+                <div class="sale-info">
+                    <div class="info-section">
+                        <h2>Основная информация</h2>
+                        <div class="info-row">
+                            <span class="info-label">Номер продажи:</span>
+                            <span class="info-value">${data.sale_number || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Дата продажи:</span>
+                            <span class="info-value">${formatDate(data.sale_date)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Статус оплаты:</span>
+                            <span class="info-value">${statusBadge}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Дата создания:</span>
+                            <span class="info-value">${formatDate(data.created_at)}</span>
+                        </div>
+                        ${data.updated_at ? `
+                        <div class="info-row">
+                            <span class="info-label">Дата обновления:</span>
+                            <span class="info-value">${formatDate(data.updated_at)}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Информация о клиенте</h2>
+                        ${data.customer_info ? `
+                        <div class="info-row">
+                            <span class="info-label">Имя клиента:</span>
+                            <span class="info-value">${data.customer_info.customer_name || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Телефон:</span>
+                            <span class="info-value">${data.customer_info.phone || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Email:</span>
+                            <span class="info-value">${data.customer_info.email || '-'}</span>
+                        </div>
+                        ` : '<p>Информация о клиенте отсутствует</p>'}
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Товары в продаже</h2>
+                        <div class="sale-items-list">
+                            ${saleItemsHtml}
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Финансовая информация</h2>
+                        ${data.financial_info ? `
+                        <div class="info-row">
+                            <span class="info-label">Сумма без скидки:</span>
+                            <span class="info-value">${data.financial_info.subtotal_amount ? formatCurrency(data.financial_info.subtotal_amount) : '-'}</span>
+                        </div>
+                        ${data.financial_info.discount_amount ? `
+                        <div class="info-row">
+                            <span class="info-label">Скидка:</span>
+                            <span class="info-value">${formatCurrency(data.financial_info.discount_amount)}</span>
+                        </div>
+                        ` : ''}
+                        ${data.financial_info.tax_amount ? `
+                        <div class="info-row">
+                            <span class="info-label">Налог:</span>
+                            <span class="info-value">${formatCurrency(data.financial_info.tax_amount)}</span>
+                        </div>
+                        ` : ''}
+                        <div class="info-row total-row">
+                            <span class="info-label">Итоговая сумма:</span>
+                            <span class="info-value">${data.financial_info.total_amount ? formatCurrency(data.financial_info.total_amount) : '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Способ оплаты:</span>
+                            <span class="info-value">${formatPaymentMethod(data.financial_info.payment_method) || '-'}</span>
+                        </div>
+                        ${data.financial_info.total_profit ? `
+                        <div class="info-row">
+                            <span class="info-label">Общая прибыль:</span>
+                            <span class="info-value">${formatCurrency(data.financial_info.total_profit)}</span>
+                        </div>
+                        ` : ''}
+                        ` : '<p>Финансовая информация отсутствует</p>'}
+                    </div>
+                    
+                    ${data.cashier_info ? `
+                    <div class="info-section">
+                        <h2>Информация о кассире</h2>
+                        <div class="info-row">
+                            <span class="info-label">Имя кассира:</span>
+                            <span class="info-value">${data.cashier_info.cashier_name || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Номер кассы:</span>
+                            <span class="info-value">${data.cashier_info.cash_register_number || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Номер чека:</span>
+                            <span class="info-value">${data.cashier_info.receipt_number || '-'}</span>
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    ${data.return_info && data.return_info.has_returns ? `
+                    <div class="info-section">
+                        <h2>Информация о возврате</h2>
+                        <div class="info-row">
+                            <span class="info-label">Дата возврата:</span>
+                            <span class="info-value">${formatDate(data.return_info.return_date)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Причина возврата:</span>
+                            <span class="info-value">${formatReturnReason(data.return_info.return_reason) || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Сумма возврата:</span>
+                            <span class="info-value">${formatCurrency(data.return_info.return_amount)}</span>
+                        </div>
+                        ${data.return_info.items_returned && data.return_info.items_returned.length > 0 ? `
+                        <div class="info-row">
+                            <span class="info-label">Возвращенные товары:</span>
+                            <span class="info-value">
+                                ${data.return_info.items_returned.map(item => 
+                                    `<div>${item.part_id} - ${item.returned_quantity} шт.</div>`
+                                ).join('')}
+                            </span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    ${data.comments ? `
+                    <div class="info-section">
+                        <h2>Комментарии</h2>
+                        <div class="info-row">
+                            <div>${data.comments}</div>
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            container.innerHTML = content;
+        }
+
+        function formatCurrency(amount, currency = 'RUB') {
+            if (amount === undefined || amount === null) return '-';
+            const formatter = new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: currency,
+                minimumFractionDigits: 2
+            });
+            return formatter.format(amount);
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('ru-RU');
+            } catch (e) {
+                return dateString;
+            }
+        }
+        
+        function formatPaymentStatus(status) {
+            const statusMap = {
+                'completed': 'Оплачено',
+                'pending': 'Ожидает оплаты',
+                'failed': 'Ошибка оплаты',
+                'refunded': 'Возврат'
+            };
+            
+            return statusMap[status] || status || '-';
+        }
+        
+        function formatPaymentMethod(method) {
+            const methodMap = {
+                'cash': 'Наличные',
+                'card': 'Банковская карта',
+                'transfer': 'Банковский перевод',
+                'online': 'Онлайн-оплата'
+            };
+            
+            return methodMap[method] || method;
+        }
+        
+        function formatReturnReason(reason) {
+            const reasonMap = {
+                'defect': 'Брак',
+                'wrong_item': 'Неверный товар',
+                'customer_changed_mind': 'Клиент передумал',
+                'not_as_described': 'Не соответствует описанию'
+            };
+            
+            return reasonMap[reason] || reason;
+        }
+    </script>
+</body>
+</html> 

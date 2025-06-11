@@ -1,0 +1,13 @@
+db.sales.aggregate([
+  { $unwind: "$sold_items" },
+  { 
+    $group: {
+      _id: "$sold_items.part_id",
+      name: { $first: "$sold_items.part_name" },
+      qty: { $sum: "$sold_items.sold_quantity" }
+    }
+  },
+  { $sort: { qty: 1 } },
+  { $limit: 10 }
+])
+

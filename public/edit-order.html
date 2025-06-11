@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование заказа | Автозапчасти</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .order-form { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .form-section { margin-bottom: 30px; border: 1px solid #eee; padding: 20px; border-radius: 5px; }
+        .form-section h2 { font-size: 1.2em; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+        .form-group { margin-bottom: 15px; }
+        .form-label { display: block; margin-bottom: 5px; color: #666; }
+        .form-control { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .form-check { display: flex; align-items: center; gap: 8px; }
+        .form-buttons { margin-top: 30px; display: flex; justify-content: space-between; }
+        .loading-message, .error-message, .success-message { text-align: center; padding: 20px; }
+        .error-message { color: #f44336; }
+        .success-message { color: #4caf50; }
+        .array-item { border: 1px solid #ddd; border-radius: 4px; padding: 15px; margin-bottom: 15px; background-color: #f9f9f9; }
+        .array-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Редактирование заказа</h1>
+        <div class="action-panel">
+            <button onclick="history.back()" class="btn-secondary">Вернуться назад</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="orderFormContainer">
+            <p class="loading-message">Загрузка данных заказа...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchOrderById, updateOrder } from './js/api/orders-api.js';
+        import { fetchAllSuppliers } from './js/api/suppliers-api.js';
+        import { fetchAllParts } from './js/api/parts-api.js';
+
+        let allSuppliers = [];
+        let allParts = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderId = urlParams.get('id');
+            const container = document.getElementById('orderFormContainer');
+
+            if (!orderId) {
+                container.innerHTML = '<p class="error-message">Ошибка: ID заказа не указан.</p>';
+                return;
+            }
+
+            try {
+                const results = await Promise.all([
+                    fetchAllSuppliers(),
+                    fetchAllParts(),
+                    fetchOrderById(orderId)
+                ]);
+
+                allSuppliers = results[0];
+                allParts = results[1];
+                const order = results[2];
+
+                if (!order) {
+                    container.innerHTML = '<p class="error-message">Заказ не найден.</p>';
+                    return;
+                }
+
+                document.title = `Редактирование заказа №${order.order_number}`;
+                renderOrderForm(order, container);
+
+            } catch (error) {
+                console.error('Ошибка при загрузке данных:', error);
+                container.innerHTML = `<p class="error-message">Ошибка загрузки: ${error.message}</p>`;
+            }
+        });
+
+        function renderOrderForm(data, container) {
+            container.innerHTML = `
+                <form id="editOrderForm" class="order-form">
+                    <input type="hidden" name="orderId" value="${data._id}">
+
+                    <!-- Основная информация -->
+                    <div class="form-section">
+                        <h2>Основная информация</h2>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Номер заказа:</label>
+                                <input type="text" class="form-control" value="${data.order_number || ''}" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="order_date">Дата заказа:</label>
+                                <input type="date" class="form-control" id="order_date" value="${formatDateForInput(data.order_date)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="order_status">Статус заказа:</label>
+                                <select class="form-control" id="order_status">
+                                    <option value="draft" ${data.order_status === 'draft' ? 'selected' : ''}>Черновик</option>
+                                    <option value="placed" ${data.order_status === 'placed' ? 'selected' : ''}>Размещен</option>
+                                    <option value="processing" ${data.order_status === 'processing' ? 'selected' : ''}>В обработке</option>
+                                    <option value="shipped" ${data.order_status === 'shipped' ? 'selected' : ''}>Отправлен</option>
+                                    <option value="delivered" ${data.order_status === 'delivered' ? 'selected' : ''}>Доставлен</option>
+                                    <option value="completed" ${data.order_status === 'completed' ? 'selected' : ''}>Завершен</option>
+                                    <option value="cancelled" ${data.order_status === 'cancelled' ? 'selected' : ''}>Отменен</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Информация о поставщике -->
+                    <div class="form-section">
+                        <h2>Информация о поставщике</h2>
+                        <div class="form-group">
+                            <label class="form-label" for="supplier_id">Поставщик:</label>
+                            <select class="form-control" id="supplier_id">
+                                <option value="">-- Выберите поставщика --</option>
+                                ${allSuppliers.map(s => `
+                                    <option value="${s._id}" ${data.supplier_info?.supplier_id === s._id ? 'selected' : ''}>${s.supplier_name}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="manager_name">Имя менеджера:</label>
+                            <input type="text" class="form-control" id="manager_name" value="${data.supplier_info?.manager_name || ''}">
+                        </div>
+                    </div>
+
+                    <!-- Товары в заказе -->
+                    <div class="form-section">
+                        <h2>Товары в заказе</h2>
+                        <div id="orderItemsContainer">
+                            ${(data.order_items || []).map((item, index) => renderOrderItem(item, index)).join('')}
+                        </div>
+                        <button type="button" class="btn-secondary" onclick="window.addOrderItem()">Добавить товар</button>
+                    </div>
+
+                    <!-- Финансовая информация -->
+                    <div class="form-section">
+                        <h2>Финансовая информация</h2>
+                        <div class="grid-2">
+                             <div class="form-group">
+                                <label class="form-label" for="subtotal_amount">Сумма (без налога):</label>
+                                <input type="number" step="0.01" class="form-control" id="subtotal_amount" value="${data.financial_info?.subtotal_amount || 0}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="customs_duty">Таможенная пошлина:</label>
+                                <input type="number" step="0.01" class="form-control" id="customs_duty" value="${data.financial_info?.customs_duty || 0}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="delivery_cost">Стоимость доставки:</label>
+                                <input type="number" step="0.01" class="form-control" id="delivery_cost" value="${data.financial_info?.delivery_cost || 0}">
+                            </div>
+                             <div class="form-group">
+                                <label class="form-label" for="total_amount">Общая сумма:</label>
+                                <input type="number" step="0.01" class="form-control" id="total_amount" value="${data.financial_info?.total_amount || 0}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="payment_status">Статус оплаты:</label>
+                                <select class="form-control" id="payment_status">
+                                    <option value="pending" ${data.financial_info?.payment_status === 'pending' ? 'selected' : ''}>Ожидает</option>
+                                    <option value="partial" ${data.financial_info?.payment_status === 'partial' ? 'selected' : ''}>Частично</option>
+                                    <option value="completed" ${data.financial_info?.payment_status === 'completed' ? 'selected' : ''}>Оплачен</option>
+                                    <option value="refunded" ${data.financial_info?.payment_status === 'refunded' ? 'selected' : ''}>Возврат</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Информация о доставке -->
+                    <div class="form-section">
+                        <h2>Информация о доставке</h2>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="form-label" for="delivery_status">Статус доставки:</label>
+                                <select class="form-control" id="delivery_status">
+                                    <option value="pending" ${data.delivery_info?.delivery_status === 'pending' ? 'selected' : ''}>Ожидает отправки</option>
+                                    <option value="in_transit" ${data.delivery_info?.delivery_status === 'in_transit' ? 'selected' : ''}>В пути</option>
+                                    <option value="delivered" ${data.delivery_info?.delivery_status === 'delivered' ? 'selected' : ''}>Доставлен</option>
+                                    <option value="delayed" ${data.delivery_info?.delivery_status === 'delayed' ? 'selected' : ''}>Задерживается</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="delivery_address">Адрес доставки:</label>
+                                <input type="text" class="form-control" id="delivery_address" value="${data.delivery_info?.delivery_address || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="expected_delivery_date">Ожидаемая дата доставки:</label>
+                                <input type="date" class="form-control" id="expected_delivery_date" value="${formatDateForInput(data.delivery_info?.expected_delivery_date)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="actual_delivery_date">Фактическая дата доставки:</label>
+                                <input type="date" class="form-control" id="actual_delivery_date" value="${formatDateForInput(data.delivery_info?.actual_delivery_date)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="customs_broker">Таможенный брокер:</label>
+                                <input type="text" class="form-control" id="customs_broker" value="${data.delivery_info?.customs_broker || ''}">
+                            </div>
+                             <div class="form-group">
+                                <label class="form-label" for="customs_declaration_number">Номер декларации:</label>
+                                <input type="text" class="form-control" id="customs_declaration_number" value="${data.delivery_info?.customs_declaration_number || ''}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Информация о дефектах -->
+                    <div class="form-section">
+                        <h2>Информация о дефектах</h2>
+                        <div id="defectsInfoContainer">
+                            ${(data.defects_info || []).map((defect, index) => renderDefectItem(defect, index)).join('')}
+                        </div>
+                        <button type="button" class="btn-secondary" onclick="window.addDefectItem()">Добавить дефект</button>
+                    </div>
+
+                    <div id="statusMessage"></div>
+
+                    <!-- Кнопки управления -->
+                    <div class="form-buttons">
+                        <button type="button" onclick="window.history.back()" class="btn-secondary">Отмена</button>
+                        <button type="submit" class="btn-primary">Сохранить изменения</button>
+                    </div>
+                </form>
+            `;
+
+            document.getElementById('editOrderForm').addEventListener('submit', handleFormSubmit);
+        }
+        
+        function renderOrderItem(item = {}, index) {
+            return `
+                <div class="array-item" data-index="${index}">
+                    <div class="array-item-header">
+                        <h4>Товар ${index + 1}</h4>
+                        <button type="button" class="btn-danger" onclick="this.closest('.array-item').remove()">Удалить</button>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Запчасть:</label>
+                        <select class="form-control part-select">
+                            <option value="">-- Выберите запчасть --</option>
+                            ${allParts.map(p => `
+                                <option value="${p._id}" data-price="${p.price || 0}" ${item.part_id == p._id ? 'selected' : ''}>${p.part_name}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Заказано (кол-во):</label>
+                            <input type="number" class="form-control ordered-quantity" value="${item.ordered_quantity || 1}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Цена за единицу:</label>
+                            <input type="number" step="0.01" class="form-control unit-price" value="${item.unit_price || 0}">
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderDefectItem(defect = {}, index) {
+            return `
+                <div class="array-item" data-index="${index}">
+                    <div class="array-item-header">
+                        <h4>Дефект ${index + 1}</h4>
+                        <button type="button" class="btn-danger" onclick="this.closest('.array-item').remove()">Удалить</button>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Запчасть:</label>
+                            <select class="form-control defect-part-select">
+                                <option value="">-- Выберите запчасть --</option>
+                                ${allParts.map(p => `
+                                    <option value="${p._id}" ${defect.part_id == p._id ? 'selected' : ''}>${p.part_name}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Кол-во брака:</label>
+                            <input type="number" class="form-control defective-quantity" value="${defect.defective_quantity || 1}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Описание дефекта:</label>
+                        <textarea class="form-control defect-description" rows="2">${defect.defect_description || ''}</textarea>
+                    </div>
+                    <div class="grid-3">
+                         <div class="form-check">
+                            <input type="checkbox" class="return-to-supplier" ${defect.return_to_supplier ? 'checked' : ''}>
+                            <label>Возврат поставщику</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="replacement-requested" ${defect.replacement_requested ? 'checked' : ''}>
+                            <label>Замена запрошена</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="replacement-received" ${defect.replacement_received ? 'checked' : ''}>
+                            <label>Замена получена</label>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        window.addOrderItem = () => {
+            const container = document.getElementById('orderItemsContainer');
+            const newIndex = container.children.length;
+            container.insertAdjacentHTML('beforeend', renderOrderItem({}, newIndex));
+        };
+
+        window.addDefectItem = () => {
+            const container = document.getElementById('defectsInfoContainer');
+            const newIndex = container.children.length;
+            container.insertAdjacentHTML('beforeend', renderDefectItem({}, newIndex));
+        };
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const form = e.target;
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.innerHTML = '<p class="loading-message">Сохранение...</p>';
+
+            const orderItems = [];
+            document.querySelectorAll('#orderItemsContainer .array-item').forEach(el => {
+                const partSelect = el.querySelector('.part-select');
+                const selectedOption = partSelect.options[partSelect.selectedIndex];
+                orderItems.push({
+                    part_id: partSelect.value,
+                    part_name: selectedOption ? selectedOption.text.trim() : '',
+                    ordered_quantity: parseInt(el.querySelector('.ordered-quantity').value),
+                    unit_price: parseFloat(el.querySelector('.unit-price').value),
+                });
+            });
+
+            const defectsInfo = [];
+            document.querySelectorAll('#defectsInfoContainer .array-item').forEach(el => {
+                const partSelect = el.querySelector('.defect-part-select');
+                const selectedOption = partSelect.options[partSelect.selectedIndex];
+                defectsInfo.push({
+                    part_id: partSelect.value,
+                    part_name: selectedOption ? selectedOption.text.trim() : '',
+                    defective_quantity: parseInt(el.querySelector('.defective-quantity').value),
+                    defect_description: el.querySelector('.defect-description').value,
+                    return_to_supplier: el.querySelector('.return-to-supplier').checked,
+                    replacement_requested: el.querySelector('.replacement-requested').checked,
+                    replacement_received: el.querySelector('.replacement-received').checked
+                });
+            });
+            
+            const supplierSelect = document.getElementById('supplier_id');
+            const selectedSupplierOption = supplierSelect.options[supplierSelect.selectedIndex];
+
+            const updatedData = {
+                order_date: form.querySelector('#order_date').value,
+                order_status: form.querySelector('#order_status').value,
+                supplier_info: {
+                    supplier_id: supplierSelect.value,
+                    supplier_name: selectedSupplierOption ? selectedSupplierOption.text.trim() : '',
+                    manager_name: form.querySelector('#manager_name').value,
+                },
+                order_items: orderItems,
+                financial_info: {
+                    subtotal_amount: parseFloat(form.querySelector('#subtotal_amount').value),
+                    customs_duty: parseFloat(form.querySelector('#customs_duty').value),
+                    delivery_cost: parseFloat(form.querySelector('#delivery_cost').value),
+                    total_amount: parseFloat(form.querySelector('#total_amount').value),
+                    payment_status: form.querySelector('#payment_status').value,
+                },
+                delivery_info: {
+                    delivery_status: form.querySelector('#delivery_status').value,
+                    delivery_address: form.querySelector('#delivery_address').value,
+                    expected_delivery_date: form.querySelector('#expected_delivery_date').value || null,
+                    actual_delivery_date: form.querySelector('#actual_delivery_date').value || null,
+                    customs_broker: form.querySelector('#customs_broker').value,
+                    customs_declaration_number: form.querySelector('#customs_declaration_number').value,
+                },
+                defects_info: defectsInfo,
+            };
+            
+            try {
+                const orderId = form.querySelector('input[name="orderId"]').value;
+                await updateOrder(orderId, updatedData);
+
+                statusMessage.innerHTML = '<p class="success-message">Данные успешно сохранены</p>';
+
+                setTimeout(() => {
+                    window.location.href = `order.html?id=${orderId}`;
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Ошибка при сохранении заказа:', error);
+                statusMessage.innerHTML = `<p class="error-message">Ошибка сохранения: ${error.message}</p>`;
+            }
+        }
+        
+        function formatDateForInput(dateString) {
+            if (!dateString) return '';
+            try {
+                return new Date(dateString).toISOString().split('T')[0];
+            } catch (e) {
+                return '';
+            }
+        }
+    </script>
+</body>
+</html>

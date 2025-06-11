@@ -1,0 +1,51 @@
+db.sales.aggregate([
+  {
+    $match: {
+      "sale_date": {
+        $gte: new ISODate("2024-01-01T00:00:00Z"),
+        $lte: new ISODate("2024-12-31T23:59:59Z")
+      }
+    }
+  },
+  {
+    $unwind: "$sold_items"
+  },
+  {
+    $group: {
+      _id: null,
+      total_amount: { $sum: "$sold_items.total_sale_price" },
+      total_profit: { $sum: "$sold_items.total_profit" },
+      supplier_units: {
+        $sum: {
+          $cond: [
+            { $eq: ["$sold_items.supplier_info.supplier_name", "ООО Автодетали Премиум"] },
+            "$sold_items.sold_quantity",
+            0
+          ]
+        }
+      },
+      supplier_amount: {
+        $sum: {
+          $cond: [
+            { $eq: ["$sold_items.supplier_info.supplier_name", "ООО Автодетали Премиум"] },
+            "$sold_items.total_sale_price",
+            0
+          ]
+        }
+      }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      total_profit: 1,
+      supplier_share: {
+        percentage: {
+          $multiply: [{ $divide: ["$supplier_amount", "$total_amount"] }, 100]
+        },
+        amount: "$supplier_amount",
+        units: "$supplier_units"
+      }
+    }
+  }
+])

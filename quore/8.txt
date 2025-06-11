@@ -1,0 +1,11 @@
+db.parts.aggregate([
+  { $match: { "sales_statistics.last_30_days_sold": { $gt: 0 }}},
+  { $project: {
+      part_name: 1,
+      stock: "$warehouse_info.current_stock",
+      daily_sales: { $divide: ["$sales_statistics.last_30_days_sold", 30] },
+      days_to_sell: { 
+        $divide: ["$warehouse_info.current_stock", { $divide: ["$sales_statistics.last_30_days_sold", 30] }]
+      }
+  }}
+])

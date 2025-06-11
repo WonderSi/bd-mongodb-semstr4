@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Данные заказа | Автозапчасти</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .order-info {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .info-section {
+            margin-bottom: 30px;
+        }
+        
+        .info-section h2 {
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-row {
+            display: flex;
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+        
+        .info-label {
+            width: 200px;
+            color: #666;
+        }
+        
+        .info-value {
+            color: #333;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .error-message {
+            color: #f44336;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .order-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #eee;
+            background-color: #f9f9f9;
+        }
+        
+        .order-item-header {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        .status-draft {
+            background-color: #f0f0f0;
+            color: #666;
+        }
+        
+        .status-placed {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .status-processing {
+            background-color: #fff8e1;
+            color: #ff8f00;
+        }
+        
+        .status-shipped {
+            background-color: #e8f5e9;
+            color: #43a047;
+        }
+        
+        .status-delivered {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        .status-completed {
+            background-color: #d1e7dd;
+            color: #198754;
+        }
+        
+        .status-cancelled {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        
+        .priority-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.85em;
+        }
+        
+        .priority-low {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .priority-medium {
+            background-color: #fff8e1;
+            color: #ff8f00;
+        }
+        
+        .priority-high {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+        
+        .priority-urgent {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        
+        .total-row {
+            font-weight: bold;
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Данные заказа</h1>
+        <div class="action-panel">
+            <button onclick="history.back()" class="btn-secondary">Вернуться назад</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="orderInfo">
+            <p class="loading-message">Загрузка данных...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchOrderById } from './js/api/orders-api.js';
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderId = urlParams.get('id');
+            const orderInfo = document.getElementById('orderInfo');
+            
+            if (!orderId) {
+                orderInfo.innerHTML = '<p class="error-message">Ошибка: ID заказа не указан</p>';
+                return;
+            }
+            
+            try {
+                const order = await fetchOrderById(orderId);
+                
+                if (!order) {
+                    orderInfo.innerHTML = '<p class="error-message">Заказ не найден</p>';
+                    return;
+                }
+
+                document.title = `Заказ №${order.order_number || orderId} | Автозапчасти`;
+                
+                renderOrderInfo(order, orderInfo);
+                
+            } catch (error) {
+                console.error('Ошибка при загрузке данных заказа:', error);
+                orderInfo.innerHTML = `<p class="error-message">Ошибка загрузки данных: ${error.message}</p>`;
+            }
+        });
+
+        function renderOrderInfo(data, container) {
+            let orderItemsHtml = '';
+            
+            if (data.order_items && data.order_items.length > 0) {
+                orderItemsHtml = data.order_items.map((item, index) => {
+                    const itemTotal = item.unit_price * item.ordered_quantity;
+                    
+                    return `
+                        <div class="order-item">
+                            <div class="order-item-header">${index + 1}. ${item.part_name || 'Запчасть'}</div>
+                            <div class="info-row">
+                                <span class="info-label">Количество:</span>
+                                <span class="info-value">${item.ordered_quantity} шт.</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Цена за единицу:</span>
+                                <span class="info-value">${formatCurrency(item.unit_price)}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Итого:</span>
+                                <span class="info-value">${formatCurrency(itemTotal)}</span>
+                            </div>
+                            ${item.received_quantity !== undefined ? `
+                            <div class="info-row">
+                                <span class="info-label">Получено:</span>
+                                <span class="info-value">${item.received_quantity} шт.</span>
+                            </div>
+                            ` : ''}
+                            ${item.defective_quantity !== undefined ? `
+                            <div class="info-row">
+                                <span class="info-label">Брак:</span>
+                                <span class="info-value">${item.defective_quantity} шт.</span>
+                            </div>
+                            ` : ''}
+                            ${item.storage_cells_assigned && item.storage_cells_assigned.length > 0 ? `
+                            <div class="info-row">
+                                <span class="info-label">Ячейки хранения:</span>
+                                <span class="info-value">${Array.isArray(item.storage_cells_assigned) ? item.storage_cells_assigned.join(', ') : item.storage_cells_assigned}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                orderItemsHtml = '<p>Товары в заказе отсутствуют</p>';
+            }
+
+            const statusClass = data.order_status ? `status-${data.order_status}` : '';
+            const statusBadge = `<span class="status-badge ${statusClass}">${formatStatus(data.order_status)}</span>`;
+            
+            let priorityBadge = '';
+            if (data.priority_level) {
+                const priorityClass = `priority-${data.priority_level}`;
+                priorityBadge = `<span class="priority-badge ${priorityClass}">${formatPriority(data.priority_level)}</span>`;
+            }
+            
+            let defectsHtml = '';
+            if (data.defects_info && data.defects_info.length > 0) {
+                defectsHtml = data.defects_info.map((defect, index) => {
+                    return `
+                        <div class="order-item">
+                            <div class="order-item-header">${index + 1}. ${defect.part_name || 'Запчасть'}</div>
+                            <div class="info-row">
+                                <span class="info-label">Количество брака:</span>
+                                <span class="info-value">${defect.defective_quantity} шт.</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Описание дефекта:</span>
+                                <span class="info-value">${defect.defect_description || '-'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Дата обнаружения:</span>
+                                <span class="info-value">${formatDate(defect.defect_discovery_date)}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Возврат поставщику:</span>
+                                <span class="info-value">${defect.return_to_supplier ? 'Да' : 'Нет'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Замена запрошена:</span>
+                                <span class="info-value">${defect.replacement_requested ? 'Да' : 'Нет'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Замена получена:</span>
+                                <span class="info-value">${defect.replacement_received ? 'Да' : 'Нет'}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                defectsHtml = '<p>Информация о дефектах отсутствует</p>';
+            }
+            
+            const content = `
+                <div class="order-info">
+                    <div class="info-section">
+                        <h2>Основная информация</h2>
+                        <div class="info-row">
+                            <span class="info-label">Номер заказа:</span>
+                            <span class="info-value">${data.order_number || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Дата заказа:</span>
+                            <span class="info-value">${formatDate(data.order_date)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Статус заказа:</span>
+                            <span class="info-value">${statusBadge}</span>
+                        </div>
+                        ${data.priority_level ? `
+                        <div class="info-row">
+                            <span class="info-label">Приоритет:</span>
+                            <span class="info-value">${priorityBadge}</span>
+                        </div>
+                        ` : ''}
+                        <div class="info-row">
+                            <span class="info-label">Дата создания:</span>
+                            <span class="info-value">${formatDate(data.created_at)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Дата обновления:</span>
+                            <span class="info-value">${formatDate(data.updated_at)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Информация о поставщике</h2>
+                        ${data.supplier_info ? `
+                        <div class="info-row">
+                            <span class="info-label">Название:</span>
+                            <span class="info-value">${data.supplier_info.supplier_name || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Категория:</span>
+                            <span class="info-value">${data.supplier_info.supplier_category || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Менеджер:</span>
+                            <span class="info-value">${data.supplier_info.manager_name || '-'}</span>
+                        </div>
+                        ` : '<p>Информация о поставщике отсутствует</p>'}
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Товары в заказе</h2>
+                        <div class="order-items-list">
+                            ${orderItemsHtml}
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <h2>Финансовая информация</h2>
+                        ${data.financial_info ? `
+                        <div class="info-row">
+                            <span class="info-label">Сумма без налога:</span>
+                            <span class="info-value">${data.financial_info.subtotal_amount ? formatCurrency(data.financial_info.subtotal_amount) : '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Стоимость доставки:</span>
+                            <span class="info-value">${data.financial_info.delivery_cost ? formatCurrency(data.financial_info.delivery_cost) : '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Таможенная пошлина:</span>
+                            <span class="info-value">${data.financial_info.customs_duty ? formatCurrency(data.financial_info.customs_duty) : '-'}</span>
+                        </div>
+                        <div class="info-row total-row">
+                            <span class="info-label">Общая сумма:</span>
+                            <span class="info-value">${data.financial_info.total_amount ? formatCurrency(data.financial_info.total_amount) : '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Статус оплаты:</span>
+                            <span class="info-value">${formatPaymentStatus(data.financial_info.payment_status) || '-'}</span>
+                        </div>
+                        ${data.financial_info.payment_date ? `
+                        <div class="info-row">
+                            <span class="info-label">Дата оплаты:</span>
+                            <span class="info-value">${formatDate(data.financial_info.payment_date)}</span>
+                        </div>
+                        ` : ''}
+                        ` : '<p>Финансовая информация отсутствует</p>'}
+                    </div>
+                    
+                    ${data.delivery_info ? `
+                    <div class="info-section">
+                        <h2>Информация о доставке</h2>
+                        <div class="info-row">
+                            <span class="info-label">Статус доставки:</span>
+                            <span class="info-value">${formatDeliveryStatus(data.delivery_info.delivery_status) || '-'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Ожидаемая дата:</span>
+                            <span class="info-value">${formatDate(data.delivery_info.expected_delivery_date)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Фактическая дата:</span>
+                            <span class="info-value">${formatDate(data.delivery_info.actual_delivery_date)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Адрес доставки:</span>
+                            <span class="info-value">${data.delivery_info.delivery_address || '-'}</span>
+                        </div>
+                        ${data.delivery_info.customs_clearance_date ? `
+                        <div class="info-row">
+                            <span class="info-label">Дата таможенной очистки:</span>
+                            <span class="info-value">${formatDate(data.delivery_info.customs_clearance_date)}</span>
+                        </div>
+                        ` : ''}
+                        ${data.delivery_info.customs_broker ? `
+                        <div class="info-row">
+                            <span class="info-label">Таможенный брокер:</span>
+                            <span class="info-value">${data.delivery_info.customs_broker}</span>
+                        </div>
+                        ` : ''}
+                        ${data.delivery_info.customs_declaration_number ? `
+                        <div class="info-row">
+                            <span class="info-label">Номер таможенной декларации:</span>
+                            <span class="info-value">${data.delivery_info.customs_declaration_number}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    ${data.defects_info && data.defects_info.length > 0 ? `
+                    <div class="info-section">
+                        <h2>Информация о дефектах</h2>
+                        <div class="defects-list">
+                            ${defectsHtml}
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            container.innerHTML = content;
+        }
+
+        function formatCurrency(amount, currency = 'RUB') {
+            const formatter = new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: currency,
+                minimumFractionDigits: 2
+            });
+            return formatter.format(amount);
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('ru-RU');
+            } catch (e) {
+                return dateString;
+            }
+        }
+        
+        function formatStatus(status) {
+            const statusMap = {
+                'draft': 'Черновик',
+                'placed': 'Размещен',
+                'processing': 'В обработке',
+                'shipped': 'Отправлен',
+                'delivered': 'Доставлен',
+                'completed': 'Завершен',
+                'cancelled': 'Отменен'
+            };
+            
+            return statusMap[status] || status;
+        }
+        
+        function formatPriority(priority) {
+            const priorityMap = {
+                'low': 'Низкий',
+                'medium': 'Средний',
+                'high': 'Высокий',
+                'urgent': 'Срочный'
+            };
+            
+            return priorityMap[priority] || priority;
+        }
+        
+        function formatPaymentStatus(status) {
+            const statusMap = {
+                'pending': 'Ожидает оплаты',
+                'partial': 'Частично оплачен',
+                'completed': 'Оплачен полностью',
+                'refunded': 'Возврат средств'
+            };
+            
+            return statusMap[status] || status;
+        }
+        
+        function formatDeliveryStatus(status) {
+            const statusMap = {
+                'pending': 'Ожидает отправки',
+                'in_transit': 'В пути',
+                'delivered': 'Доставлен',
+                'delayed': 'Задержка доставки'
+            };
+            
+            return statusMap[status] || status;
+        }
+    </script>
+</body>
+</html>

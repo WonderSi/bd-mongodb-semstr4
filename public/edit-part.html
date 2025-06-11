@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование запчасти | Автозапчасти</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .part-form {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .form-section {
+            margin-bottom: 30px;
+        }
+        
+        .form-section h2 {
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .form-check {
+            margin-top: 5px;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .error-message {
+            color: #f44336;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .success-message {
+            color: #4caf50;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .form-buttons {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        
+        .tag {
+            background-color: #e1f5fe;
+            color: #0288d1;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+        }
+        
+        .tag .remove-tag {
+            margin-left: 5px;
+            cursor: pointer;
+        }
+        
+        .add-tag {
+            margin-top: 10px;
+        }
+        
+        .array-item {
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .array-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .array-actions {
+            display: flex;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Редактирование запчасти</h1>
+        <div class="action-panel">
+            <button onclick="history.back()" class="btn-secondary">Вернуться назад</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="partForm">
+            <p class="loading-message">Загрузка данных...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { fetchPartById, updatePart } from './js/api/parts-api.js';
+        import { fetchAllSuppliers } from './js/api/suppliers-api.js';
+        
+        let suppliers = [];
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const partId = urlParams.get('id');
+            const partForm = document.getElementById('partForm');
+            
+            if (!partId) {
+                partForm.innerHTML = '<p class="error-message">Ошибка: ID запчасти не указан</p>';
+                return;
+            }
+            
+            try {
+                suppliers = await fetchAllSuppliers();
+                
+                const part = await fetchPartById(partId);
+                
+                if (!part) {
+                    partForm.innerHTML = '<p class="error-message">Запчасть не найдена</p>';
+                    return;
+                }
+
+                document.title = `Редактирование: ${part.part_name} | Автозапчасти`;
+                
+                renderPartForm(part, partForm);
+                
+            } catch (error) {
+                console.error('Ошибка при загрузке данных запчасти:', error);
+                partForm.innerHTML = `<p class="error-message">Ошибка загрузки данных: ${error.message}</p>`;
+            }
+        });
+        
+        function renderPartForm(data, container) {
+            const form = document.createElement('form');
+            form.id = 'editPartForm';
+            form.className = 'part-form';
+            
+            form.innerHTML = `
+                <input type="hidden" name="partId" value="${data._id}">
+                
+                <div class="form-section">
+                    <h2>Основная информация</h2>
+                    <div class="form-group">
+                        <label class="form-label" for="part_name">Название:</label>
+                        <input type="text" class="form-control" id="part_name" name="part_name" value="${data.part_name || ''}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="part_category">Категория:</label>
+                        <select class="form-control" id="part_category" name="part_category" required>
+                            <option value="engine" ${data.part_category === 'engine' ? 'selected' : ''}>Двигатель</option>
+                            <option value="brake_system" ${data.part_category === 'brake_system' ? 'selected' : ''}>Тормозная система</option>
+                            <option value="suspension" ${data.part_category === 'suspension' ? 'selected' : ''}>Подвеска</option>
+                            <option value="exhaust" ${data.part_category === 'exhaust' ? 'selected' : ''}>Выхлопная система</option>
+                            <option value="electrical" ${data.part_category === 'electrical' ? 'selected' : ''}>Электрика</option>
+                            <option value="body" ${data.part_category === 'body' ? 'selected' : ''}>Кузов</option>
+                            <option value="interior" ${data.part_category === 'interior' ? 'selected' : ''}>Салон</option>
+                            <option value="other" ${data.part_category === 'other' ? 'selected' : ''}>Другое</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" id="is_seasonal" name="is_seasonal" ${data.is_seasonal ? 'checked' : ''}>
+                            <label for="is_seasonal">Сезонная запчасть</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="description">Описание:</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">${data.description || ''}</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="tags">Теги:</label>
+                        <div class="tag-list" id="tagsList">
+                            ${data.tags && data.tags.map((tag, index) => 
+                                `<span class="tag" data-tag="${tag}">${tag} 
+                                    <span class="remove-tag" onclick="window.removeTag('${tag}')">&times;</span>
+                                </span>`
+                            ).join('') || ''}
+                        </div>
+                        <div class="add-tag">
+                            <input type="text" class="form-control" id="newTag" placeholder="Новый тег">
+                            <button type="button" class="btn-secondary" onclick="window.addTag()">Добавить тег</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h2>Технические характеристики</h2>
+                    <div class="form-group">
+                        <label class="form-label" for="manufacturer">Производитель:</label>
+                        <input type="text" class="form-control" id="manufacturer" name="manufacturer" 
+                            value="${data.specifications?.manufacturer || ''}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="weight_kg">Вес (кг):</label>
+                        <input type="number" step="0.01" class="form-control" id="weight_kg" name="weight_kg" 
+                            value="${data.specifications?.weight_kg || ''}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="dimensions">Размеры:</label>
+                        <input type="text" class="form-control" id="dimensions" name="dimensions" 
+                            value="${data.specifications?.dimensions || ''}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="material">Материал:</label>
+                        <input type="text" class="form-control" id="material" name="material" 
+                            value="${data.specifications?.material || ''}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="compatibility">Совместимость:</label>
+                        <textarea class="form-control" id="compatibility" name="compatibility" rows="2">${data.specifications?.compatibility?.join(', ') || ''}</textarea>
+                        <small class="text-muted">Введите значения через запятую</small>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h2>Информация о поставщиках</h2>
+                    <div id="suppliersContainer">
+                        ${data.suppliers_info && data.suppliers_info.map((supplier, index) => `
+                            <div class="array-item supplier-item" data-index="${index}">
+                                <div class="array-item-header">
+                                    <h3>Поставщик ${index + 1}</h3>
+                                    <div class="array-actions">
+                                        <button type="button" class="btn-danger" onclick="window.removeSupplier(${index})">Удалить</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label" for="supplier_id_${index}">Поставщик:</label>
+                                    <select class="form-control" id="supplier_id_${index}" name="supplier_id_${index}">
+                                        <option value="">Выберите поставщика</option>
+                                        ${suppliers.map(s => 
+                                            `<option value="${s._id}" ${supplier.supplier_id === s._id ? 'selected' : ''}>${s.supplier_name}</option>`
+                                        ).join('')}
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label" for="price_per_unit_${index}">Цена за единицу:</label>
+                                    <input type="number" step="0.01" class="form-control" id="price_per_unit_${index}" 
+                                        name="price_per_unit_${index}" value="${supplier.price_per_unit || ''}">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label" for="delivery_days_min_${index}">Мин. срок доставки (дней):</label>
+                                    <input type="number" class="form-control" id="delivery_days_min_${index}" 
+                                        name="delivery_days_min_${index}" value="${supplier.delivery_days_min || ''}">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label" for="delivery_days_max_${index}">Макс. срок доставки (дней):</label>
+                                    <input type="number" class="form-control" id="delivery_days_max_${index}" 
+                                        name="delivery_days_max_${index}" value="${supplier.delivery_days_max || ''}">
+                                </div>
+                            </div>
+                        `).join('') || ''}
+                    </div>
+                    
+                    <button type="button" class="btn-secondary" onclick="window.addSupplier()">Добавить поставщика</button>
+                </div>
+                
+                <div class="form-section">
+                    <h2>Данные склада</h2>
+                    <div class="form-group">
+                        <label class="form-label" for="current_stock">В наличии (шт):</label>
+                        <input type="number" class="form-control" id="current_stock" name="current_stock" 
+                            value="${data.warehouse_info?.current_stock || '0'}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="reserved_stock">Зарезервировано (шт):</label>
+                        <input type="number" class="form-control" id="reserved_stock" name="reserved_stock" 
+                            value="${data.warehouse_info?.reserved_stock || '0'}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="storage_cells">Ячейки хранения:</label>
+                        <input type="text" class="form-control" id="storage_cells" name="storage_cells" 
+                            value="${data.warehouse_info?.storage_cells?.join(', ') || ''}">
+                        <small class="text-muted">Введите значения через запятую</small>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h2>Статистика продаж</h2>
+                    <div class="form-group">
+                        <label class="form-label" for="total_sold_quantity">Всего продано (шт):</label>
+                        <input type="number" class="form-control" id="total_sold_quantity" name="total_sold_quantity" 
+                            value="${data.sales_statistics?.total_sold_quantity || '0'}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="total_sold_amount">На сумму (₽):</label>
+                        <input type="number" step="0.01" class="form-control" id="total_sold_amount" name="total_sold_amount" 
+                            value="${data.sales_statistics?.total_sold_amount || '0'}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="last_30_days_sold">За последние 30 дней (шт):</label>
+                        <input type="number" class="form-control" id="last_30_days_sold" name="last_30_days_sold" 
+                            value="${data.sales_statistics?.last_30_days_sold || '0'}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="last_sale_date">Дата последней продажи:</label>
+                        <input type="date" class="form-control" id="last_sale_date" name="last_sale_date" 
+                            value="${data.sales_statistics?.last_sale_date ? new Date(data.sales_statistics.last_sale_date).toISOString().split('T')[0] : ''}">
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>Информация о дефектах</h2>
+                    <div class="form-group">
+                        <label class="form-label" for="total_defects">Всего дефектов:</label>
+                        <input type="number" class="form-control" id="total_defects" name="total_defects" 
+                            value="${data.defect_info?.total_defects || '0'}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="defect_rate_percent">Процент дефектов:</label>
+                        <input type="number" step="0.01" class="form-control" id="defect_rate_percent" name="defect_rate_percent" 
+                            value="${data.defect_info?.defect_rate_percent || '0'}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="last_defect_date">Дата последнего дефекта:</label>
+                        <input type="date" class="form-control" id="last_defect_date" name="last_defect_date" 
+                            value="${data.defect_info?.last_defect_date ? new Date(data.defect_info.last_defect_date).toISOString().split('T')[0] : ''}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="defect_suppliers">Поставщики с дефектами:</label>
+                        <select multiple class="form-control" id="defect_suppliers" name="defect_suppliers">
+                            ${suppliers.map(s => 
+                                `<option value="${s._id}" ${data.defect_info?.defect_suppliers?.includes(s._id) ? 'selected' : ''}>${s.supplier_name}</option>`
+                            ).join('')}
+                        </select>
+                        <small class="text-muted">Удерживайте Ctrl для выбора нескольких поставщиков</small>
+                    </div>
+                </div>
+                
+                <div id="statusMessage"></div>
+                
+                <div class="form-buttons">
+                    <button type="button" onclick="window.history.back()" class="btn-secondary">Отмена</button>
+                    <button type="submit" class="btn-primary">Сохранить изменения</button>
+                </div>
+            `;
+            
+            container.innerHTML = '';
+            container.appendChild(form);
+
+            window.addTag = function() {
+                const newTagInput = document.getElementById('newTag');
+                const tagsList = document.getElementById('tagsList');
+                
+                if (newTagInput.value.trim() === '') return;
+                
+                const tag = newTagInput.value.trim();
+
+                if (document.querySelector(`.tag[data-tag="${tag}"]`)) {
+                    alert('Такой тег уже существует!');
+                    return;
+                }
+                
+                const tagElement = document.createElement('span');
+                tagElement.className = 'tag';
+                tagElement.dataset.tag = tag;
+                tagElement.innerHTML = `${tag} <span class="remove-tag" onclick="window.removeTag('${tag}')">&times;</span>`;
+                
+                tagsList.appendChild(tagElement);
+                newTagInput.value = '';
+            };
+            
+            window.removeTag = function(tag) {
+                const tagElement = document.querySelector(`.tag[data-tag="${tag}"]`);
+                if (tagElement) {
+                    tagElement.remove();
+                }
+            };
+            
+            window.addSupplier = function() {
+                const suppliersContainer = document.getElementById('suppliersContainer');
+                const index = document.querySelectorAll('.supplier-item').length;
+                
+                const supplierElement = document.createElement('div');
+                supplierElement.className = 'array-item supplier-item';
+                supplierElement.dataset.index = index;
+                
+                supplierElement.innerHTML = `
+                    <div class="array-item-header">
+                        <h3>Поставщик ${index + 1}</h3>
+                        <div class="array-actions">
+                            <button type="button" class="btn-danger" onclick="window.removeSupplier(${index})">Удалить</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="supplier_id_${index}">Поставщик:</label>
+                        <select class="form-control" id="supplier_id_${index}" name="supplier_id_${index}">
+                            <option value="">Выберите поставщика</option>
+                            ${suppliers.map(s => 
+                                `<option value="${s._id}">${s.supplier_name}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="price_per_unit_${index}">Цена за единицу:</label>
+                        <input type="number" step="0.01" class="form-control" id="price_per_unit_${index}" 
+                            name="price_per_unit_${index}" value="">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="delivery_days_min_${index}">Мин. срок доставки (дней):</label>
+                        <input type="number" class="form-control" id="delivery_days_min_${index}" 
+                            name="delivery_days_min_${index}" value="">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="delivery_days_max_${index}">Макс. срок доставки (дней):</label>
+                        <input type="number" class="form-control" id="delivery_days_max_${index}" 
+                            name="delivery_days_max_${index}" value="">
+                    </div>
+                `;
+                
+                suppliersContainer.appendChild(supplierElement);
+            };
+            
+            window.removeSupplier = function(index) {
+                const supplierElement = document.querySelector(`.supplier-item[data-index="${index}"]`);
+                if (supplierElement) {
+                    supplierElement.remove();
+
+                    const supplierItems = document.querySelectorAll('.supplier-item');
+                    supplierItems.forEach((item, idx) => {
+                        item.dataset.index = idx;
+                        item.querySelector('h3').textContent = `Поставщик ${idx + 1}`;
+                        item.querySelector('.btn-danger').setAttribute('onclick', `window.removeSupplier(${idx})`);
+                    });
+                }
+            };
+
+            form.addEventListener('submit', handleFormSubmit);
+        }
+        
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.innerHTML = '<p class="loading-message">Сохранение данных...</p>';
+            
+            const form = document.getElementById('editPartForm');
+            const partId = form.querySelector('input[name="partId"]').value;
+            
+            try {
+                const tags = Array.from(document.querySelectorAll('#tagsList .tag')).map(tagEl => tagEl.dataset.tag);
+                
+                const compatibility = form.querySelector('#compatibility').value
+                    .split(',')
+                    .map(item => item.trim())
+                    .filter(item => item !== '');
+                
+                const storageCells = form.querySelector('#storage_cells').value
+                    .split(',')
+                    .map(item => item.trim())
+                    .filter(item => item !== '');
+                
+                const suppliersInfo = [];
+                const supplierItems = document.querySelectorAll('.supplier-item');
+                
+                supplierItems.forEach((item, idx) => {
+                    const supplierId = form.querySelector(`#supplier_id_${idx}`).value;
+                    if (supplierId) {
+                        const selectedSupplier = suppliers.find(s => s._id === supplierId);
+                        
+                        suppliersInfo.push({
+                            supplier_id: supplierId,
+                            supplier_name: selectedSupplier ? selectedSupplier.supplier_name : '',
+                            supplier_category: selectedSupplier ? selectedSupplier.supplier_category : '',
+                            price_per_unit: parseFloat(form.querySelector(`#price_per_unit_${idx}`).value || 0),
+                            delivery_days_min: parseInt(form.querySelector(`#delivery_days_min_${idx}`).value || 0),
+                            delivery_days_max: parseInt(form.querySelector(`#delivery_days_max_${idx}`).value || 0)
+                        });
+                    }
+                });
+                
+                const updatedData = {
+                    _id: partId,
+                    part_name: form.querySelector('#part_name').value,
+                    part_category: form.querySelector('#part_category').value,
+                    is_seasonal: form.querySelector('#is_seasonal').checked,
+                    description: form.querySelector('#description').value,
+                    tags: tags,
+                    
+                    specifications: {
+                        manufacturer: form.querySelector('#manufacturer').value,
+                        compatibility: compatibility,
+                        weight_kg: parseFloat(form.querySelector('#weight_kg').value || 0),
+                        dimensions: form.querySelector('#dimensions').value,
+                        material: form.querySelector('#material').value
+                    },
+                    
+                    suppliers_info: suppliersInfo,
+                    
+                    warehouse_info: {
+                        current_stock: parseInt(form.querySelector('#current_stock').value || 0),
+                        reserved_stock: parseInt(form.querySelector('#reserved_stock').value || 0),
+                        storage_cells: storageCells
+                    },
+                    
+                    sales_statistics: {
+                        total_sold_quantity: parseInt(form.querySelector('#total_sold_quantity').value || 0),
+                        total_sold_amount: parseFloat(form.querySelector('#total_sold_amount').value || 0),
+                        last_30_days_sold: parseInt(form.querySelector('#last_30_days_sold').value || 0),
+                        last_sale_date: form.querySelector('#last_sale_date').value ? new Date(form.querySelector('#last_sale_date').value).toISOString() : null
+                    },
+                    
+                    defect_info: {
+                        total_defects: parseInt(form.querySelector('#total_defects').value || 0),
+                        defect_rate_percent: parseFloat(form.querySelector('#defect_rate_percent').value || 0),
+                        last_defect_date: form.querySelector('#last_defect_date').value ? new Date(form.querySelector('#last_defect_date').value).toISOString() : null,
+                        defect_suppliers: Array.from(form.querySelector('#defect_suppliers').selectedOptions, option => option.value)
+                    },
+                    
+                    last_updated: new Date()
+                };
+                
+                await updatePart(partId, updatedData);
+                
+                statusMessage.innerHTML = '<p class="success-message">Данные успешно сохранены</p>';
+                
+                setTimeout(() => {
+                    window.location.href = `part.html?id=${partId}`;
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Ошибка при сохранении данных:', error);
+                statusMessage.innerHTML = `<p class="error-message">Ошибка сохранения: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

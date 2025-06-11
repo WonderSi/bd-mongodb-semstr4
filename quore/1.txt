@@ -1,0 +1,20 @@
+db.orders.aggregate([
+  {
+    $unwind: "$order_items"
+  },
+  {
+    $match: {
+      "order_date": { $gte: ISODate("2024-01-01"), $lte: ISODate("2024-12-31") },
+      "order_items.part_name": "Тормозные колодки передние BMW X5",
+      "order_items.received_quantity": { $gte: 10 },
+      "supplier_info.supplier_category": "firm"
+    }
+  },
+  {
+    $group: {
+      _id: "$supplier_info.supplier_id",
+      name: { $first: "$supplier_info.supplier_name" },
+      total: { $sum: "$order_items.received_quantity" }
+    }
+  }
+])

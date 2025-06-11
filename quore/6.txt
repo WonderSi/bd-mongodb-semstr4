@@ -1,0 +1,49 @@
+db.parts.aggregate([
+  { $match: { 
+      "warehouse_info.current_stock": { $gt: 0 } 
+  }},
+  { $group: {
+      _id: null,
+      total_stock: { $sum: "$warehouse_info.current_stock" },
+      total_count: { $sum: 1 },
+      old_stock: { 
+        $sum: { 
+          $cond: [
+            { $lt: ["$creation_date", ISODate("2024-01-01")] },
+            "$warehouse_info.current_stock",
+            0
+          ]
+        }
+      },
+      old_count: {
+        $sum: { 
+          $cond: [
+            { $lt: ["$creation_date", ISODate("2024-01-01")] },
+            1,
+            0
+          ]
+        }
+      }
+  }},
+  { $project: {
+      _id: 0,
+      total_stock: 1,
+      total_count: 1,
+      old_stock: 1,
+      old_count: 1,
+      stock_percentage: { 
+        $cond: [
+          { $eq: ["$total_stock", 0] },
+          0,
+          { $multiply: [{ $divide: ["$old_stock", "$total_stock"] }, 100] }
+        ]
+      },
+      count_percentage: {
+        $cond: [
+          { $eq: ["$total_count", 0] },
+          0,
+          { $multiply: [{ $divide: ["$old_count", "$total_count"] }, 100] }
+        ]
+      }
+  }}
+])

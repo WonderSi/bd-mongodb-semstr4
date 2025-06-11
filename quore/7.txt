@@ -1,0 +1,13 @@
+db.orders.aggregate([
+  { $match: {
+      "order_date": { $gte: ISODate("2024-01-01"), $lte: ISODate("2024-12-31") },
+      "defects_info": { $exists: true, $ne: [] }
+  }},
+  { $unwind: "$defects_info" },
+  { $group: {
+      _id: "$defects_info.part_id",
+      name: { $first: "$defects_info.part_name" },
+      defects: { $sum: "$defects_info.defective_quantity" },
+      suppliers: { $addToSet: "$supplier_info.supplier_name" }
+  }}
+])
